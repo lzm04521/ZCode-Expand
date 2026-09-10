@@ -58,22 +58,57 @@ export function readInstallInfo(installDir) {
 }
 
 /**
- * 判断 ZCode.exe 是否在运行。
- * 判定失败时抛出而不是当作“未运行”，避免在占用状态下误写。
+ * 列出正在运行的 ZCode 进程及其可执行文件路径。
+ * 用于判断"运行中的实例是否会锁住我们要写的 app.asar"。
+ * @returns {{ok: boolean, paths: string[], error?: string}}
  */
-export function assertZCodeNotRunning() {
+export function listZCodeProcessPaths() {
   let out;
   try {
-    out = execFileSync('tasklist', ['/FI', 'IMAGENAME eq ZCode.exe', '/NH'], {
-      encoding: 'utf8',
-      windowsHide: true,
-    });
+    out = execFileSync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "Get-Process -Name ZCode -ErrorAction SilentlyContinue | ForEach-Object { $_.Path }",
+      ],
+      { encoding: 'utf8', windowsHide: true }
+    );
   } catch (err) {
-    throw new Error(`无法确认 ZCode 进程状态（tasklist 调用失败）：${err.message}`);
+    return { ok: false, paths: [], error: err.message };
   }
-  if (/ZCode\.exe/i.test(out)) {
-    throw new Error('ZCode 正在运行。请先完全退出（含托盘），再执行本操作。');
+  const paths = out
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return { ok: true, paths };
+}
+
+/**
+ * 确认目标安装目录没有被运行中的实例占用。
+ * 判定不清时抛错（保守），不把"无法确认"当作"没占用"。
+ */
+export function assertTargetNotLocked(installDir) {
+  const probe = listZCodeProcessPaths();
+  if (!probe.ok) {
+    throw new Error(
+      `无法确认 ZCode 进程状态（PowerShell 调用失败）：${probe.error}\n` +
+        `请手动确认 ZCode 已退出后重试。`
+    );
   }
+  if (probe.paths.length === 0) return { running: false, others: [] };
+
+  const target = resolve(join(installDir, 'ZCode.exe')).toLowerCase();
+  const locking = probe.paths.filter((pr) => resolve(pr).toLowerCase() === target);
+  if (locking.length > 0) {
+    throw new Error(
+      `目标安装目录下的 ZCode 正在运行：${installDir}\n` +
+        `请先完全退出（含托盘），再执行本操作。运行中 app.asar 被占用，替换会失败。`
+    );
+  }
+  // 有别的实例在跑，但不是要改的这个目录（例如对副本/离线包操作）
+  return { running: true, others: probe.paths };
 }
 
 export function listPatchVersions() {

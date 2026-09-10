@@ -86,8 +86,9 @@ export function buildReplacements(asar, patchSet) {
     }
     const text = readEntry(asar, target.file).toString('utf8');
     const { text: next, report: r } = applyEdits(text, target.edits ?? [], target.file);
-    replace.set(target.file, Buffer.from(next, 'utf8'));
-    report.push({ file: target.file, description: target.description, edits: r });
+    // 内容没有实际变化（补丁已应用）→ 不放进 replace，让重复 apply 成为真正的空操作
+    if (next !== text) replace.set(target.file, Buffer.from(next, 'utf8'));
+    report.push({ file: target.file, description: target.description, edits: r, changed: next !== text });
   }
   return { replace, report };
 }

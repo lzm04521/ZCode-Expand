@@ -31,13 +31,15 @@
           "note": "全量 schema",
           "find": "recentProjects:e.array(e.string()).default([]),locale:",
           "replace": "recentProjects:e.array(e.string()).default([]),projectRemarks:e.record(e.string(),e.string()).optional(),locale:",
-          "expect": 1
+          "expect": 1,
+          "marker": "recentProjects:e.array(e.string()).default([]),projectRemarks:"
         },
         {
           "note": "局部 patch schema",
           "find": "recentProjects:e.array(e.string()).optional(),locale:",
           "replace": "recentProjects:e.array(e.string()).optional(),projectRemarks:e.record(e.string(),e.string()).optional(),locale:",
-          "expect": 1
+          "expect": 1,
+          "marker": "recentProjects:e.array(e.string()).optional(),projectRemarks:"
         }
       ]
     },
@@ -49,13 +51,15 @@
           "note": "全量 schema",
           "find": "recentProjects:t.array(t.string()).default([]),locale:",
           "replace": "recentProjects:t.array(t.string()).default([]),projectRemarks:t.record(t.string(),t.string()).optional(),locale:",
-          "expect": 1
+          "expect": 1,
+          "marker": "recentProjects:t.array(t.string()).default([]),projectRemarks:"
         },
         {
           "note": "局部 patch schema",
           "find": "recentProjects:t.array(t.string()).optional(),locale:",
           "replace": "recentProjects:t.array(t.string()).optional(),projectRemarks:t.record(t.string(),t.string()).optional(),locale:",
-          "expect": 1
+          "expect": 1,
+          "marker": "recentProjects:t.array(t.string()).optional(),projectRemarks:"
         }
       ]
     },
@@ -67,13 +71,15 @@
           "note": "全量 schema",
           "find": "recentProjects:E(x()).default([]),locale:",
           "replace": "recentProjects:E(x()).default([]),projectRemarks:A(x(),x()).optional(),locale:",
-          "expect": 1
+          "expect": 1,
+          "marker": "recentProjects:E(x()).default([]),projectRemarks:"
         },
         {
           "note": "局部 patch schema",
           "find": "recentProjects:E(x()).optional(),locale:",
           "replace": "recentProjects:E(x()).optional(),projectRemarks:A(x(),x()).optional(),locale:",
-          "expect": 1
+          "expect": 1,
+          "marker": "recentProjects:E(x()).optional(),projectRemarks:"
         }
       ]
     },

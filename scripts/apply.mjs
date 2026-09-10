@@ -19,7 +19,7 @@ import {
   resolveInstallDir,
   installPaths,
   readInstallInfo,
-  assertZCodeNotRunning,
+  assertTargetNotLocked,
   listPatchVersions,
   backupDir,
   stateDir,
@@ -54,6 +54,9 @@ function info(msg) {
 async function main() {
   const args = parseArgs();
   const dryRun = !!args['dry-run'];
+  const outputPath = typeof args.output === 'string' ? args.output : null;
+  // 只有真正要替换安装目录里的 app.asar 时，才需要写权限与退出应用
+  const willReplaceInstall = !dryRun && !outputPath;
   const installDir = resolveInstallDir(args);
   const p = installPaths(installDir);
 
@@ -75,12 +78,17 @@ async function main() {
     );
   }
 
-  if (!dryRun) {
+  if (willReplaceInstall) {
     step('进程检查');
-    assertZCodeNotRunning();
-    info('ZCode 未运行，可以写入');
+    const lock = assertTargetNotLocked(installDir);
+    if (!lock.running) {
+      info('ZCode 未运行，可以写入');
+    } else {
+      info('目标目录下的实例未运行；检测到其它位置的实例在跑，不影响本次写入：');
+      for (const other of lock.others) info(`  ${other}`);
+    }
   } else {
-    step('进程检查（dry-run 跳过）');
+    step('进程检查（不替换安装目录，跳过）');
   }
 
   const asar = openAsar(p.asar);
@@ -133,7 +141,7 @@ async function main() {
     info('语法检查通过');
 
     step('重建 asar');
-    const outFile = dryRun ? join(process.cwd(), 'app.asar.dryrun') : `${p.asar}.zcexpand.tmp`;
+    const outFile = outputPath ?? (dryRun ? join(process.cwd(), 'app.asar.dryrun') : `${p.asar}.zcexpand.tmp`);
     const writeSummary = writeRepacked(asar, { replace, add: addEffective }, outFile);
     info(`产物大小：${writeSummary.bytesWritten.toLocaleString()} 字节`);
     info(`数据区起始：${writeSummary.dataStart.toLocaleString()}`);
@@ -166,9 +174,8 @@ async function main() {
     return;
   }
 
-  if (typeof args.output === 'string') {
-    copyFileSync(result.outFile, args.output);
-    console.log(`\n已输出到：${args.output}（安装目录未改动）`);
+  if (outputPath) {
+    console.log(`\n已输出到：${outputPath}（安装目录未改动）`);
     return;
   }
 

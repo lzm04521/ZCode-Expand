@@ -14,7 +14,7 @@ import {
   resolveInstallDir,
   installPaths,
   readInstallInfo,
-  assertZCodeNotRunning,
+  assertTargetNotLocked,
   backupDir,
 } from './lib/env.mjs';
 import { sha256 } from './lib/asar.mjs';
@@ -55,7 +55,10 @@ async function main() {
   const chosen = typeof args.from === 'string' ? { path: args.from, name: args.from } : backups[0];
   if (!existsSync(chosen.path)) throw new Error(`备份文件不存在：${chosen.path}`);
 
-  assertZCodeNotRunning();
+  const lock = assertTargetNotLocked(installDir);
+  if (lock.running) {
+    console.log('目标目录下的实例未运行（检测到其它位置的实例在跑，不影响本次写入）');
+  }
 
   // 覆盖前先把当前状态也留一份，避免回滚后又想回退
   mkdirSync(backupDir(), { recursive: true });
