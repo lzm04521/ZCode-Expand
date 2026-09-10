@@ -1,0 +1,18 @@
+{
+  "name": "zcode-expand",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ZCode 桌面端自定义扩展：按版本维护的 app.asar 补丁集与替换机制",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "inspect": "node scripts/inspect.mjs",
+    "verify": "node scripts/verify.mjs",
+    "apply": "node scripts/apply.mjs",
+    "apply:dry": "node scripts/apply.mjs --dry-run",
+    "rollback": "node scripts/rollback.mjs",
+    "rollback:list": "node scripts/rollback.mjs --list"
+  }
+}

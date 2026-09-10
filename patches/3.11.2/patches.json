@@ -1,0 +1,115 @@
+{
+  "appVersion": "3.11.2",
+  "patchFormat": 1,
+  "summary": "项目列表备注：设置 schema 增加 projectRemarks 字段，项目行显示备注，行内「更多」菜单增加编辑入口。",
+  "addFiles": [
+    {
+      "from": "src/renderer/zc-remarks.js",
+      "to": "out/renderer/zcode-expand/zc-remarks.js",
+      "description": "备注功能模块（注入到渲染层，暴露 window.__ZC_EXPAND__）"
+    }
+  ],
+  "targets": [
+    {
+      "file": "out/renderer/index.html",
+      "description": "在应用入口脚本之前注入备注模块，保证 window.__ZC_EXPAND__ 先就绪",
+      "edits": [
+        {
+          "note": "注入脚本标签",
+          "find": "<script type=\"module\" crossorigin src=\"./assets/index-CWNwuuMm.js\"></script>",
+          "replace": "<script src=\"./zcode-expand/zc-remarks.js\"></script>\n    <script type=\"module\" crossorigin src=\"./assets/index-CWNwuuMm.js\"></script>",
+          "expect": 1,
+          "marker": "zcode-expand/zc-remarks.js"
+        }
+      ]
+    },
+    {
+      "file": "out/main/chunk-WR3FEWGO.js",
+      "description": "主进程设置 schema（全量 + 局部 patch）：放行 projectRemarks",
+      "edits": [
+        {
+          "note": "全量 schema",
+          "find": "recentProjects:e.array(e.string()).default([]),locale:",
+          "replace": "recentProjects:e.array(e.string()).default([]),projectRemarks:e.record(e.string(),e.string()).optional(),locale:",
+          "expect": 1
+        },
+        {
+          "note": "局部 patch schema",
+          "find": "recentProjects:e.array(e.string()).optional(),locale:",
+          "replace": "recentProjects:e.array(e.string()).optional(),projectRemarks:e.record(e.string(),e.string()).optional(),locale:",
+          "expect": 1
+        }
+      ]
+    },
+    {
+      "file": "out/host/chunk-RWMCBKS2.js",
+      "description": "host 进程设置 schema（全量 + 局部 patch）：放行 projectRemarks",
+      "edits": [
+        {
+          "note": "全量 schema",
+          "find": "recentProjects:t.array(t.string()).default([]),locale:",
+          "replace": "recentProjects:t.array(t.string()).default([]),projectRemarks:t.record(t.string(),t.string()).optional(),locale:",
+          "expect": 1
+        },
+        {
+          "note": "局部 patch schema",
+          "find": "recentProjects:t.array(t.string()).optional(),locale:",
+          "replace": "recentProjects:t.array(t.string()).optional(),projectRemarks:t.record(t.string(),t.string()).optional(),locale:",
+          "expect": 1
+        }
+      ]
+    },
+    {
+      "file": "out/renderer/assets/src-CdedQslh.js",
+      "description": "渲染层设置 schema 副本（全量 + 局部 patch）：放行 projectRemarks",
+      "edits": [
+        {
+          "note": "全量 schema",
+          "find": "recentProjects:E(x()).default([]),locale:",
+          "replace": "recentProjects:E(x()).default([]),projectRemarks:A(x(),x()).optional(),locale:",
+          "expect": 1
+        },
+        {
+          "note": "局部 patch schema",
+          "find": "recentProjects:E(x()).optional(),locale:",
+          "replace": "recentProjects:E(x()).optional(),projectRemarks:A(x(),x()).optional(),locale:",
+          "expect": 1
+        }
+      ]
+    },
+    {
+      "file": "out/renderer/assets/styles-DyAcaLKy.js",
+      "description": "项目列表行（WorkspaceSidebarItem）：读取设置、按备注生成显示名、增加编辑入口",
+      "edits": [
+        {
+          "note": "在项目行组件内取设置服务（settings/update）",
+          "find": "let{intl:w}=K(),T=jo(t=>ko(t,e.workspacePath,e.workspaceIdentity)),",
+          "replace": "let{intl:w}=K(),zcXp=nx(),T=jo(t=>ko(t,e.workspacePath,e.workspaceIdentity)),",
+          "expect": 1,
+          "marker": "zcXp=nx(),T=jo("
+        },
+        {
+          "note": "计算带备注的显示名（放在 zcXpLabel，不动原 re，避免影响其它用途）",
+          "find": "=i$(e.label,e.remoteTarget),U=_wt(e),",
+          "replace": "=i$(e.label,e.remoteTarget),zcXpLabel=window.__ZC_EXPAND__?window.__ZC_EXPAND__.label(i$(e.label,e.remoteTarget),e.workspacePath,zcXp.settings&&zcXp.settings.projectRemarks):i$(e.label,e.remoteTarget),U=_wt(e),",
+          "expect": 1,
+          "marker": "zcXpLabel=window.__ZC_EXPAND__"
+        },
+        {
+          "note": "显示名渲染点改用 zcXpLabel",
+          "find": "children:re}),!n&&u?",
+          "replace": "children:zcXpLabel}),!n&&u?",
+          "expect": 1,
+          "marker": "children:zcXpLabel})"
+        },
+        {
+          "note": "「更多」菜单在同步项之后插入「编辑备注」",
+          "find": "(0,$.jsx)(Z$,{canSyncSkills:se,canSyncMcp:se,canSyncPlugins:se,stopMouseDownPropagation:!0,onOpenSkillSync:()=>de(!0),onOpenMcpSync:()=>pe(!0),onOpenPluginSync:()=>he(!0)}),",
+          "replace": "(0,$.jsx)(Z$,{canSyncSkills:se,canSyncMcp:se,canSyncPlugins:se,stopMouseDownPropagation:!0,onOpenSkillSync:()=>de(!0),onOpenMcpSync:()=>pe(!0),onOpenPluginSync:()=>he(!0)}),(0,$.jsxs)(rt,{onMouseDown:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation()},onSelect:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation(),window.__ZC_EXPAND__&&window.__ZC_EXPAND__.edit({name:e.workspacePath,current:zcXp.settings&&zcXp.settings.projectRemarks&&zcXp.settings.projectRemarks[e.workspacePath]||``,onSave:zcXpNext=>{let zcXpMap=Object.assign({},zcXp.settings&&zcXp.settings.projectRemarks||{});if(zcXpNext)zcXpMap[e.workspacePath]=zcXpNext;else delete zcXpMap[e.workspacePath];zcXp.update({projectRemarks:zcXpMap})}})},children:[`编辑备注`]}),",
+          "expect": 1,
+          "marker": "__ZC_EXPAND__.edit("
+        }
+      ]
+    }
+  ]
+}

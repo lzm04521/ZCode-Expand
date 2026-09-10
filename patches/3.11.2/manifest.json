@@ -1,0 +1,9 @@
+{
+  "appVersion": "3.11.2",
+  "buildCommitId": "89817f5b",
+  "buildTime": "2026-09-04T08:04:18.527Z",
+  "electronBuilderVersion": "26.8.1",
+  "patchFormat": 1,
+  "createdAt": "2026-09-10",
+  "notes": "ZCode 3.11.2 基线补丁集。锚点取自本机实测的 app.asar；升级 ZCode 后锚点可能失效，届时需按 docs/03-版本适配流程.md 重新定位。"
+}

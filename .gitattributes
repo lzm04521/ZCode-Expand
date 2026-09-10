@@ -1,0 +1,12 @@
+# 统一换行，避免 Windows 检出时产生无意义 diff
+* text=auto eol=lf
+
+# 补丁锚点是逐字符匹配的，任何换行改写都会让补丁失配
+*.json text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+*.md text eol=lf
+
+# 备份与二进制产物不做换行处理
+*.asar binary
+backups/** -text

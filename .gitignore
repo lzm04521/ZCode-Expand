@@ -1,0 +1,19 @@
+# 备份的原始 app.asar（体积大，不入版本库）
+backups/
+
+# 应用状态记录（含时间戳与哈希，按需保留）
+state/
+
+# dry-run 产物
+app.asar.dryrun
+*.zcexpand.tmp
+
+# 依赖（本项目零依赖，留作兜底）
+node_modules/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
