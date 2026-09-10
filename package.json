@@ -2,6 +2,7 @@
   "name": "zcode-expand",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "description": "ZCode 桌面端自定义扩展：按版本维护的 app.asar 补丁集与替换机制",
   "type": "module",
   "engines": {
