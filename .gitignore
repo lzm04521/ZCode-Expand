@@ -17,3 +17,9 @@ node_modules/
 *.swp
 .DS_Store
 Thumbs.db
+
+AGENTS.md
+CLAUDE.md
+doc/*
+docs/*
+handoff/*

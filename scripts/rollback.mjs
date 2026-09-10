@@ -7,7 +7,7 @@
 //   node scripts/rollback.mjs --from=<文件>   # 恢复指定备份
 //   node scripts/rollback.mjs --home=<目录>
 
-import { existsSync, readdirSync, statSync, copyFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, copyFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   parseArgs,
@@ -16,9 +16,16 @@ import {
   readInstallInfo,
   assertTargetNotLocked,
   backupDir,
+  stateDir,
+  timestamp,
 } from './lib/env.mjs';
 import { sha256 } from './lib/asar.mjs';
 import { readFileSync } from 'node:fs';
+
+/** pre-rollback 留存是“回滚前状态”（通常已打补丁），不是 apply 时留下的原始备份。 */
+function isPreRollback(name) {
+  return name.includes('.pre-rollback-');
+}
 
 function listBackups() {
   const dir = backupDir();
@@ -40,7 +47,8 @@ async function main() {
     }
     console.log('可用备份（新 → 旧）：');
     for (const b of backups) {
-      console.log(`  ${b.name}\t${new Date(b.mtime).toLocaleString()}\t${b.size.toLocaleString()} 字节`);
+      const tag = isPreRollback(b.name) ? '\t[回滚前留存，不作默认候选]' : '';
+      console.log(`  ${b.name}\t${new Date(b.mtime).toLocaleString()}\t${b.size.toLocaleString()} 字节${tag}`);
     }
     return;
   }
@@ -49,10 +57,20 @@ async function main() {
     throw new Error(`没有可用备份：${backupDir()}\n无法回滚。若安装目录被改动过，需重新安装 ZCode。`);
   }
 
+  // 默认只从 apply 留下的原始备份里挑最新；pre-rollback 留存文件最新，
+  // 若不排除，连续 rollback 第二次会把“回滚前状态”（通常已打补丁）恢复回去，语义反转。
+  const candidates = backups.filter((b) => !isPreRollback(b.name));
+  if (candidates.length === 0) {
+    throw new Error(
+      `backups/ 下只有 pre-rollback 留存文件，没有 apply 时留下的原始备份。\n` +
+        `如确要从留存文件恢复，请用 --from=<文件> 显式指定。`
+    );
+  }
+
   const installDir = resolveInstallDir(args);
   const p = installPaths(installDir);
   const install = readInstallInfo(installDir);
-  const chosen = typeof args.from === 'string' ? { path: args.from, name: args.from } : backups[0];
+  const chosen = typeof args.from === 'string' ? { path: args.from, name: args.from } : candidates[0];
   if (!existsSync(chosen.path)) throw new Error(`备份文件不存在：${chosen.path}`);
 
   const lock = assertTargetNotLocked(installDir);
@@ -62,7 +80,7 @@ async function main() {
 
   // 覆盖前先把当前状态也留一份，避免回滚后又想回退
   mkdirSync(backupDir(), { recursive: true });
-  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  const stamp = timestamp();
   const safety = join(backupDir(), `app.asar.${install.appVersion}.pre-rollback-${stamp}`);
   copyFileSync(p.asar, safety);
   console.log(`已留存回滚前状态：${safety}`);
@@ -71,6 +89,14 @@ async function main() {
   const hash = sha256(readFileSync(p.asar));
   console.log(`已恢复：${chosen.name}`);
   console.log(`SHA256：${hash}`);
+
+  // apply 的状态记录随回滚失效：当前 asar 已不是 apply 产物，留着会误报“已应用”
+  const stateFile = join(stateDir(), `applied-${install.appVersion}.json`);
+  if (existsSync(stateFile)) {
+    unlinkSync(stateFile);
+    console.log(`已清理应用状态记录：${stateFile}`);
+  }
+
   console.log('\n重新启动 ZCode 后生效。');
 }
 

@@ -129,3 +129,10 @@ export function patchSetDir(version) {
 
 export const stateDir = () => join(REPO_ROOT, 'state');
 export const backupDir = () => join(REPO_ROOT, 'backups');
+
+/** 备份文件名的本地时间戳（yyyyMMdd-HHmmss），apply 备份与 rollback 留存共用同一格式 */
+export function timestamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}

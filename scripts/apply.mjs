@@ -23,6 +23,7 @@ import {
   listPatchVersions,
   backupDir,
   stateDir,
+  timestamp,
 } from './lib/env.mjs';
 import { loadPatchSet, buildReplacements, loadAddedFiles } from './lib/patch.mjs';
 import {
@@ -36,12 +37,6 @@ import {
   findEntry,
 } from './lib/asar.mjs';
 import { checkJavaScript } from './lib/syntaxcheck.mjs';
-
-function timestamp() {
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-}
 
 function step(msg) {
   console.log(`\n== ${msg}`);
