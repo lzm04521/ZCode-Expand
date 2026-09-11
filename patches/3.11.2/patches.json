@@ -1,7 +1,7 @@
 {
   "appVersion": "3.11.2",
   "patchFormat": 1,
-  "summary": "项目列表备注：设置 schema 增加 projectRemarks 字段，项目行显示备注，行内「更多」菜单增加编辑入口。",
+  "summary": "项目列表备注 + 任务运行状态点：设置 schema 增加 projectRemarks 字段，项目行显示备注，行内「更多」菜单增加编辑入口；项目下有任务正在执行（creating/restoring/streaming）时项目行显示绿色脉冲点。",
   "addFiles": [
     {
       "from": "src/renderer/zc-remarks.js",
@@ -114,6 +114,20 @@
           "replace": "(0,$.jsx)(Z$,{canSyncSkills:se,canSyncMcp:se,canSyncPlugins:se,stopMouseDownPropagation:!0,onOpenSkillSync:()=>de(!0),onOpenMcpSync:()=>pe(!0),onOpenPluginSync:()=>he(!0)}),(0,$.jsxs)(rt,{onMouseDown:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation()},onSelect:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation(),window.__ZC_EXPAND__&&window.__ZC_EXPAND__.edit({name:e.workspacePath,current:zcXp.settings&&zcXp.settings.projectRemarks&&zcXp.settings.projectRemarks[e.workspacePath]||``,onSave:zcXpNext=>{let zcXpMap=Object.assign({},zcXp.settings&&zcXp.settings.projectRemarks||{});if(zcXpNext)zcXpMap[e.workspacePath]=zcXpNext;else delete zcXpMap[e.workspacePath];zcXp.update({projectRemarks:zcXpMap})}})},children:[`编辑备注`]}),",
           "expect": 1,
           "marker": "__ZC_EXPAND__.edit("
+        },
+        {
+          "note": "计算项目运行状态（与官方移除确认框 uwt() 同源判定，经外置模块 isBusy）",
+          "find": "U=_wt(e),ie=g[V]??[]",
+          "replace": "U=_wt(e),zcXpBusy=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isBusy(T):!1,ie=g[V]??[]",
+          "expect": 1,
+          "marker": "zcXpBusy=window.__ZC_EXPAND__"
+        },
+        {
+          "note": "未读蓝点之后渲染「任务执行中」绿点（自定义 zc-xp-running，样式由外置模块注入）",
+          "find": "dark:bg-sky-400`}):null,z?",
+          "replace": "dark:bg-sky-400`}):null,zcXpBusy?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-running-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full zc-xp-running`}):null,z?",
+          "expect": 1,
+          "marker": "data-workspace-running-indicator"
         }
       ]
     }

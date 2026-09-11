@@ -1,4 +1,4 @@
-/* ZCode-Expand · 项目备注
+/* ZCode-Expand · 项目备注 + 任务运行状态点
  * ---------------------------------------------------------------------------
  * 本文件由 ZCode-Expand 注入到渲染层（out/renderer/zcode-expand/zc-remarks.js）。
  * 包内补丁只通过 window.__ZC_EXPAND__ 与本文件交互，业务逻辑全部在这里，
@@ -9,6 +9,10 @@
  *       项目行显示文本。无备注时原样返回 folderName。
  *   edit({ name, current, onSave }) -> void
  *       弹出编辑对话框；onSave(next) 在用户保存时调用（next 为空串表示清除）。
+ *   isBusy(workspaceState) -> boolean
+ *       项目是否有正在执行的任务。判定与官方"移除运行中 workspace"确认框
+ *       同源：draftRuntime.status 或任一 taskRuntimeByTaskId[*].status
+ *       处于 runningStates（默认 creating/restoring/streaming）即认为运行中。
  *   diag() -> object
  *       自检信息，便于确认注入是否生效。
  * ---------------------------------------------------------------------------
@@ -16,15 +20,16 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
 
   // localStorage 覆盖：可在不改包、不重新 apply 的情况下临时调参或整体关掉。
   //   localStorage.setItem('zcode-expand.remarks', JSON.stringify({enabled:false}))
+  //   localStorage.setItem('zcode-expand.remarks', JSON.stringify({runningStates:['streaming']}))
   // 改完执行 window.__ZC_EXPAND__.reload() 生效（或刷新窗口）。
   var OVERRIDE_KEY = 'zcode-expand.remarks';
 
   var CONFIG = {
-    // 总开关。false 时显示名回退为原名、菜单项点击无反应
+    // 总开关。false 时显示名回退为原名、菜单项点击无反应、运行状态点不再渲染
     enabled: true,
     // 有备注时的显示格式。想改成「文件夹名 (备注)」之类，只改这一行即可。
     format: function (remark, folderName) {
@@ -32,8 +37,16 @@
     },
     dialogTitle: '编辑项目备注',
     dialogHint: '留空保存即清除备注。备注写入设置文件，随应用设置一起保存。',
-    placeholder: '例如： · 生产环境',
+    placeholder: '例如：生产环境',
     maxLength: 80,
+    // 认定为「正在执行」的任务状态集合。与官方 uwt()（移除运行中 workspace
+    // 确认框）的判定保持同源：creating/restoring/streaming。
+    runningStates: ['creating', 'restoring', 'streaming'],
+    // 运行状态点样式（class zc-xp-running，由本模块注入 <style>）。
+    // 颜色优先应用主题变量，取不到用兜底绿色。
+    runningDot: {
+      color: 'var(--color-success, #22c55e)',
+    },
     // 兜底配色：优先使用应用自身的主题变量，取不到时用这些值
     fallback: {
       surface: '#1f1f22',
@@ -61,6 +74,15 @@
       if (typeof parsed.dialogTitle === 'string') CONFIG.dialogTitle = parsed.dialogTitle;
       if (typeof parsed.dialogHint === 'string') CONFIG.dialogHint = parsed.dialogHint;
       if (typeof parsed.placeholder === 'string') CONFIG.placeholder = parsed.placeholder;
+      if (Array.isArray(parsed.runningStates)) {
+        var states = parsed.runningStates.filter(function (s) {
+          return typeof s === 'string' && s.length > 0;
+        });
+        if (states.length > 0) CONFIG.runningStates = states;
+      }
+      if (parsed.runningDot && typeof parsed.runningDot === 'object') {
+        if (typeof parsed.runningDot.color === 'string') CONFIG.runningDot.color = parsed.runningDot.color;
+      }
       if (parsed.fallback && typeof parsed.fallback === 'object') {
         Object.keys(parsed.fallback).forEach(function (key) {
           if (typeof parsed.fallback[key] === 'string') CONFIG.fallback[key] = parsed.fallback[key];
@@ -98,6 +120,48 @@
       console.warn('[ZCode-Expand] format() 抛错，已退回原始名称：', err);
       return base;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 任务运行状态点
+  // ---------------------------------------------------------------------------
+
+  function isBusy(workspaceState) {
+    if (!CONFIG.enabled) return false;
+    if (!workspaceState || typeof workspaceState !== 'object') return false;
+    var states = CONFIG.runningStates;
+    var draft = workspaceState.draftRuntime;
+    if (draft && typeof draft === 'object' && states.indexOf(draft.status) !== -1) return true;
+    var byTaskId = workspaceState.taskRuntimeByTaskId;
+    if (byTaskId && typeof byTaskId === 'object') {
+      for (var key in byTaskId) {
+        if (!Object.prototype.hasOwnProperty.call(byTaskId, key)) continue;
+        var runtime = byTaskId[key];
+        if (runtime && typeof runtime === 'object' && states.indexOf(runtime.status) !== -1) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // 运行点的 class 是自定义的 zc-xp-running：不依赖应用 CSS 里是否存在
+  // emerald/pulse 等 Tailwind 类（JIT 按需生成，未用过的类不会有 CSS），
+  // 颜色跟随主题变量，动画尊重系统"减少动态效果"偏好。
+  function ensureRunningDotStyle() {
+    var STYLE_ID = 'zc-xp-running-style';
+    // 已存在时先移除，保证 reload() 改配置后能按新参数重建
+    var existing = document.getElementById(STYLE_ID);
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+    if (!CONFIG.enabled) return;
+    var el = document.createElement('style');
+    el.id = STYLE_ID;
+    el.textContent = [
+      '.zc-xp-running{background:' + CONFIG.runningDot.color + ';animation:zc-xp-pulse 2s cubic-bezier(.4,0,.6,1) infinite}',
+      '@keyframes zc-xp-pulse{50%{opacity:.35}}',
+      '@media (prefers-reduced-motion: reduce){.zc-xp-running{animation:none;opacity:.85}}',
+    ].join('\n');
+    document.head.appendChild(el);
   }
 
   var openDialog = null;
@@ -180,7 +244,10 @@
       if (kind === 'primary') {
         baseCss = [
           'height:30px', 'padding:0 14px', 'border-radius:8px', 'cursor:pointer',
-          'font:inherit', 'border:1px solid ' + accent, 'background:' + accent, 'color:#fff',
+          'font:inherit', 'border:1px solid ' + accent, 'background:' + accent,
+          // 文字色跟随主题反色变量：zai-dark 下 brand 为 #fff，foreground-inverse
+          // 为 #000，官方实心按钮同样用这对组合（bg-brand text-foreground-inverse）
+          'color:var(--color-foreground-inverse,#fff)',
         ];
       }
       el.style.cssText = baseCss.join(';');
@@ -202,12 +269,22 @@
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
 
+    // 弹窗期间把应用主树设为 inert（不可点击/聚焦/按键），杜绝底层 UI
+    // 误响应弹窗内的操作；关闭时恢复。浏览器不支持 inert 时静默跳过。
+    var appRoot = document.getElementById('root');
+    if (appRoot) {
+      try { appRoot.inert = true; } catch (err) { /* ignore */ }
+    }
+
     var finished = false;
 
     function close() {
       if (finished) return;
       finished = true;
       document.removeEventListener('keydown', onKeyDown, true);
+      if (appRoot) {
+        try { appRoot.inert = false; } catch (err) { /* ignore */ }
+      }
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
       if (openDialog && openDialog.close === close) openDialog = null;
     }
@@ -235,12 +312,16 @@
       }
     }
 
-    overlay.addEventListener('mousedown', function (ev) {
-      if (ev.target === overlay) close();
-      ev.stopPropagation();
-    });
-    panel.addEventListener('mousedown', function (ev) {
-      ev.stopPropagation();
+    // 拦截弹窗内指针事件的冒泡（含 pointerdown 等现代事件类型），
+    // 防止应用挂在 document/window 上的全局监听器响应弹窗内的点击。
+    ['pointerdown', 'mousedown', 'mouseup', 'click', 'contextmenu', 'wheel'].forEach(function (type) {
+      overlay.addEventListener(type, function (ev) {
+        if (ev.type === 'mousedown' && ev.target === overlay) close();
+        ev.stopPropagation();
+      });
+      panel.addEventListener(type, function (ev) {
+        ev.stopPropagation();
+      });
     });
     cancelBtn.addEventListener('click', function (ev) {
       ev.stopPropagation();
@@ -274,24 +355,29 @@
         enabled: CONFIG.enabled,
         maxLength: CONFIG.maxLength,
         dialogTitle: CONFIG.dialogTitle,
+        runningStates: CONFIG.runningStates,
+        runningDotColor: CONFIG.runningDot.color,
       },
     };
   }
 
   // 读取一次覆盖配置；之后可用 reload() 重新读取
   var currentOverrideRaw = applyOverrides();
+  ensureRunningDotStyle();
 
   window.__ZC_EXPAND__ = {
     version: VERSION,
     config: CONFIG,
     label: label,
     edit: edit,
+    isBusy: isBusy,
     diag: diag,
     reload: function () {
       currentOverrideRaw = applyOverrides();
+      ensureRunningDotStyle();
       return diag();
     },
   };
 
-  console.log('[ZCode-Expand] 项目备注模块已注入 v' + VERSION + '，自检：__ZC_EXPAND__.diag()');
+  console.log('[ZCode-Expand] 项目备注/运行状态模块已注入 v' + VERSION + '，自检：__ZC_EXPAND__.diag()');
 })();

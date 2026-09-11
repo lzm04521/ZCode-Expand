@@ -76,6 +76,12 @@ export function listZCodeProcessPaths() {
       { encoding: 'utf8', windowsHide: true }
     );
   } catch (err) {
+    // Windows PowerShell 5.1：Get-Process 找不到进程时，即使 SilentlyContinue
+    // 抑制了报错，-Command 的退出码仍为 1（error record 使 $? 为 False）。
+    // 这是"无进程"的正常路径，不是调用失败，必须放行。
+    if (err.status === 1 && err.stdout === '' && !err.stderr) {
+      return { ok: true, paths: [] };
+    }
     return { ok: false, paths: [], error: err.message };
   }
   const paths = out

@@ -8,7 +8,7 @@
 
 - 目标应用：ZCode Desktop `3.11.2`（构建 `89817f5b`，2026-09-04）
 - 已实现补丁集：`patches/3.11.2/`
-- 已实现功能：**项目列表备注** —— 侧边栏项目行可写备注、备注随设置保存、显示名为「备注 · 文件夹名」
+- 已实现功能：**项目列表备注 + 任务运行状态点** —— 侧边栏项目行可写备注、备注随设置保存、显示名为「备注 · 文件夹名」；项目下有任务正在执行（`creating`/`restoring`/`streaming`）时项目行显示绿色脉冲点（与官方「移除运行中 workspace」确认框同源判定）
 - **补丁尚未应用到本机安装**。补丁集已用安装包副本跑通 apply/verify/重复apply/rollback 全循环，真实安装的 `app.asar` 全程未被改动（SHA256 `14aa5db5…`）。要生效需退出 ZCode 后执行 `npm run apply`。
 
 ## 快速开始
@@ -50,7 +50,7 @@ patches/<版本>/
   manifest.json         目标版本与构建号
   patches.json          补丁定义（文件、锚点、替换、断言次数）
 src/                    我们自己的源码（不进压缩包，apply 时注入）
-  renderer/zc-remarks.js  项目备注功能模块
+  renderer/zc-remarks.js  项目备注 + 任务运行状态点功能模块
 backups/                原始 app.asar 备份（git 忽略）
 state/                  应用记录（git 忽略）
 docs/                   机制说明 / 自定义面清单 / 版本适配流程 / 设计记录
