@@ -8,8 +8,11 @@
 
 - 目标应用：ZCode Desktop `3.11.2`（构建 `89817f5b`，2026-09-04）
 - 已实现补丁集：`patches/3.11.2/`
-- 已实现功能：**项目列表备注 + 任务运行状态点** —— 侧边栏项目行可写备注、备注随设置保存、显示名为「备注 · 文件夹名」；项目下有任务正在执行（`creating`/`restoring`/`streaming`）时项目行显示绿色脉冲点（与官方「移除运行中 workspace」确认框同源判定）
-- **补丁尚未应用到本机安装**。补丁集已用安装包副本跑通 apply/verify/重复apply/rollback 全循环，真实安装的 `app.asar` 全程未被改动（SHA256 `14aa5db5…`）。要生效需退出 ZCode 后执行 `npm run apply`。
+- 已实现功能：**项目列表备注 + 项目行任务状态点 + 手机远控（Web 远程控制）适配**
+  - 侧边栏项目行可写备注，备注随设置保存，显示名为「备注 · 文件夹名」
+  - 项目行状态点（蓝绿状态机）：项目下有任务正在执行时显示**蓝色脉冲点**（判定与官方任务行 spinner 同源：`__zcodeSessionActivity.phase ∈ prewarming/running`，颜色复用官方 `sky` 类）；任务结束但有未读输出（多为完成待查看）时转**绿色静态点**（官方 `bg-success`），点开任务即灭
+  - 手机网页适配：项目列表显示备注名（屏幕小，不拼接文件夹名）、改备注后已连接手机即时刷新；会话页（新建会话/历史会话详细）顶部标题显示当前工作区备注，无备注降级文件夹名
+- 补丁已应用于本机安装，apply / verify / 重复 apply / rollback 全循环验证通过；回滚见下文「已知限制」
 
 ## 快速开始
 
@@ -50,7 +53,7 @@ patches/<版本>/
   manifest.json         目标版本与构建号
   patches.json          补丁定义（文件、锚点、替换、断言次数）
 src/                    我们自己的源码（不进压缩包，apply 时注入）
-  renderer/zc-remarks.js  项目备注 + 任务运行状态点功能模块
+  renderer/zc-remarks.js  项目备注 + 项目行状态点 + 手机端 label 适配功能模块
 backups/                原始 app.asar 备份（git 忽略）
 state/                  应用记录（git 忽略）
 docs/                   机制说明 / 自定义面清单 / 版本适配流程 / 设计记录
@@ -67,12 +70,13 @@ docs/                   机制说明 / 自定义面清单 / 版本适配流程 /
 - **应用补丁时 ZCode 必须完全退出**（含托盘）。运行中 `app.asar` 被占用，替换会失败。脚本会主动检查并拒绝执行。
 - **ZCode 升级后补丁全部失效需重新适配**。`out/` 下的 chunk 文件名带内容哈希（如 `chunk-WR3FEWGO.js`），每次构建都会变；锚点字符串也可能随代码改动位移。流程见 `docs/03-版本适配流程.md`。
 - **asar 的 `unpacked` 条目不支持替换**（本机是 node-pty 的 12 个原生模块）。补丁集若指向这类文件会直接报错。
+- **`rollback` 默认按备份文件修改时间取最新，可能选错**。Windows 文件复制保留源文件时间戳，导致「内容是原始 asar」的备份修改时间反而偏老。恢复到原始 asar 时，先用 `npm run rollback:list` 找到**最早**一份 apply 备份，再 `node scripts/rollback.mjs --from=backups/<该备份>` 显式指定。
 - 自建 asar 工具而非依赖 `@electron/asar`，是为了离线可用与可审计；代价是这条链路由本仓库自己负责正确性，因此自检做得比较重。
 
 ## 新增补丁的工作方式
 
-1. `npm run extract -- --list=<路径前缀>` 找到目标文件
-2. `npm run extract -- --grep=<关键字> --file=<文件> --window=160` 打印上下文，敲定唯一锚点
+1. `node scripts/extract.mjs --list=<路径前缀>` 找到目标文件
+2. `node scripts/extract.mjs --grep=<关键字> --file=<文件> --window=160` 打印上下文，敲定唯一锚点
 3. 在 `patches/<版本>/patches.json` 增加 target/edit：`find` / `replace` / `expect` / `marker`
    - 锚点尽量**包含后继字符**（如把 `,locale:` 一起写进 `find`），这样补丁天然幂等，重复 apply 不会重复插入
    - **每一处编辑都要给 `marker`**：一个"只有该编辑应用后才会出现"的片段。缺了它，已应用的编辑会因锚点消失而匹配 0 次，脚本直接报错中止
