@@ -27,13 +27,22 @@ function isPreRollback(name) {
   return name.includes('.pre-rollback-');
 }
 
+/** 备份文件名内嵌的备份时刻（yyyyMMdd-HHmmss，定长，字典序即时间序）。 */
+function backupStamp(name) {
+  const m = name.match(/(\d{8}-\d{6})/);
+  return m ? m[1] : '';
+}
+
 function listBackups() {
   const dir = backupDir();
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((n) => n.startsWith('app.asar.'))
-    .map((n) => ({ name: n, path: join(dir, n), mtime: statSync(join(dir, n)).mtimeMs, size: statSync(join(dir, n)).size }))
-    .sort((a, b) => b.mtime - a.mtime);
+    .map((n) => ({ name: n, path: join(dir, n), stamp: backupStamp(n), size: statSync(join(dir, n)).size }))
+    // 按文件名内嵌时间戳排序（新 → 旧），不按 mtime：Windows 文件复制保留
+    // 源文件的修改时间，apply 备份的 mtime 是源 asar 的写盘时间而非备份时刻，
+    // 曾导致“内容是原始 asar”的备份被中间态备份反超而默认选错。
+    .sort((a, b) => b.stamp.localeCompare(a.stamp));
 }
 
 async function main() {
@@ -48,7 +57,7 @@ async function main() {
     console.log('可用备份（新 → 旧）：');
     for (const b of backups) {
       const tag = isPreRollback(b.name) ? '\t[回滚前留存，不作默认候选]' : '';
-      console.log(`  ${b.name}\t${new Date(b.mtime).toLocaleString()}\t${b.size.toLocaleString()} 字节${tag}`);
+      console.log(`  ${b.name}\t${b.size.toLocaleString()} 字节${tag}`);
     }
     return;
   }
