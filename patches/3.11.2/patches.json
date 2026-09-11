@@ -1,7 +1,7 @@
 {
   "appVersion": "3.11.2",
   "patchFormat": 1,
-  "summary": "项目列表备注 + 任务运行状态点：设置 schema 增加 projectRemarks 字段，项目行显示备注，行内「更多」菜单增加编辑入口；项目下有任务正在执行（creating/restoring/streaming）时项目行显示绿色脉冲点。",
+  "summary": "项目列表备注 + 任务运行状态点：设置 schema 增加 projectRemarks 字段，项目行显示备注，行内「更多」菜单增加编辑入口；项目下有任务正在执行（creating/restoring/streaming）时项目行显示绿色脉冲点；web-remote-control 同步给 main 的项目 label 同样替换为备注，且推送签名纳入 label，手机网页项目列表显示备注名并在改备注后即时刷新。",
   "addFiles": [
     {
       "from": "src/renderer/zc-remarks.js",
@@ -128,6 +128,40 @@
           "replace": "dark:bg-sky-400`}):null,zcXpBusy?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-running-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full zc-xp-running`}):null,z?",
           "expect": 1,
           "marker": "data-workspace-running-indicator"
+        },
+        {
+          "note": "Root 组件体首行取 settings（复用 nx() hook），拿到 projectRemarks 供 web-remote-control 同步替换用",
+          "find": "hasCompletedFullTabRestore:w=!0,intl:T}){let E=(0,Q.useRef)(!1);",
+          "replace": "hasCompletedFullTabRestore:w=!0,intl:T}){let zcXpSet=nx(),zcXpRemarks=zcXpSet.settings&&zcXpSet.settings.projectRemarks;let E=(0,Q.useRef)(!1);",
+          "expect": 1,
+          "marker": "zcXpSet=nx(),zcXpRemarks"
+        },
+        {
+          "note": "web-remote-control 同步（remote 子集，$qt 结果）：label 替换为备注（无备注/模块关闭时回退原名）",
+          "find": "let e=$qt({tabs:_});if(e.length>0&&s.syncWebRemoteControlWorkspaces(e),!S||!C)return;",
+          "replace": "let e=$qt({tabs:_});if(e.length>0&&s.syncWebRemoteControlWorkspaces(e.map(zcXpW=>({...zcXpW,label:window.__ZC_EXPAND__?window.__ZC_EXPAND__.label(zcXpW.label,zcXpW.workspacePath,zcXpRemarks):zcXpW.label}))),!S||!C)return;",
+          "expect": 1,
+          "marker": "zcXpW.label}))),!S||!C"
+        },
+        {
+          "note": "web-remote-control 同步（全量，Qqt 结果）替换 label；effect 依赖加 remarks 引用，改备注即重新同步",
+          "find": "s.syncWebRemoteControlWorkspaces(t)},[w,h,s,v,b,_,S,C])",
+          "replace": "s.syncWebRemoteControlWorkspaces(t.map(zcXpW=>({...zcXpW,label:window.__ZC_EXPAND__?window.__ZC_EXPAND__.label(zcXpW.label,zcXpW.workspacePath,zcXpRemarks):zcXpW.label})))},[w,h,s,v,b,_,S,C,zcXpRemarks])",
+          "expect": 1,
+          "marker": "zcXpRemarks])"
+        }
+      ]
+    },
+    {
+      "file": "out/main/index.js",
+      "description": "主进程 web-remote-control 列表推送签名纳入 label：label 变化（如改备注）触发 workspace-list-updated 推送，已连接手机即时刷新",
+      "edits": [
+        {
+          "note": "buildWorkspaceListPushSignature 的 workspace 部分加入 label",
+          "find": "JSON.stringify([se,J.kind,J.connectionState??\"connected\"",
+          "replace": "JSON.stringify([se,J.kind,J.label??\"\",J.connectionState??\"connected\"",
+          "expect": 1,
+          "marker": "J.kind,J.label??\"\""
         }
       ]
     }
