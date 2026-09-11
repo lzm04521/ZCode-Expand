@@ -6,7 +6,7 @@
  *
  * 对外契约：
  *   label(folderName, workspacePath, remarks) -> string
- *       项目行显示文本。无备注时原样返回 folderName。
+ *       项目行显示文本。有备注只显示备注本身，无备注时原样返回 folderName。
  *   remoteLabel(folderName, workspacePath, remarks) -> string
  *       web-remote-control（手机网页）项目列表用。手机屏幕小、
  *       不拼接：有备注返回备注本身，无备注返回 folderName。
@@ -23,7 +23,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.3.1';
+  var VERSION = '1.3.2';
 
   // localStorage 覆盖：可在不改包、不重新 apply 的情况下临时调参或整体关掉。
   //   localStorage.setItem('zcode-expand.remarks', JSON.stringify({enabled:false}))
@@ -34,9 +34,10 @@
   var CONFIG = {
     // 总开关。false 时显示名回退为原名、菜单项点击无反应、运行状态点不再渲染
     enabled: true,
-    // 有备注时的显示格式。想改成「文件夹名 (备注)」之类，只改这一行即可。
+    // 有备注时的显示格式：只显示备注本身（无备注时 label() 直接回退文件夹名，
+    // 不进 format）。想恢复「备注 · 文件夹名」拼接或改「文件夹名 (备注)」，只改这一行。
     format: function (remark, folderName) {
-      return remark + ' \u00b7 ' + folderName;
+      return remark;
     },
     dialogTitle: '编辑项目备注',
     dialogHint: '留空保存即清除备注。备注写入设置文件，随应用设置一起保存。',

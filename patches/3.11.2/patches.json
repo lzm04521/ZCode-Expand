@@ -1,12 +1,17 @@
 {
   "appVersion": "3.11.2",
   "patchFormat": 1,
-  "summary": "项目列表备注 + 任务状态点：设置 schema 增加 projectRemarks 字段，项目行显示备注，行内「更多」菜单增加编辑入口；项目下有任务正在执行（与官方任务行 spinner 同源判定：__zcodeSessionActivity.phase ∈ prewarming/running）时项目行显示蓝色脉冲点（复用官方 sky 类），未在执行但有未读（多为任务完成待查看）时显示绿色静态点（复用官方 bg-success，沿官方 !n&&u 条件）；web-remote-control 同步给 main 的项目 label 同样替换为备注（手机屏幕小，有备注只显示备注、无备注回退文件夹名，不拼接），且推送签名纳入 label，手机网页项目列表显示备注名并在改备注后即时刷新；手机会话页（新建会话/历史会话详细）顶部标题显示当前工作区备注，无备注降级文件夹名，再降级原文。",
+  "summary": "项目列表备注 + 任务状态点：设置 schema 增加 projectRemarks 字段，项目行显示备注，行内「更多」菜单增加编辑入口；项目下有任务正在执行（与官方任务行 spinner 同源判定：__zcodeSessionActivity.phase ∈ prewarming/running）时项目行显示蓝色脉冲点（复用官方 sky 类），未在执行但有未读（多为任务完成待查看）时显示绿色静态点（复用官方 bg-success，沿官方 !n&&u 条件）；web-remote-control 同步给 main 的项目 label 同样替换为备注（手机屏幕小，有备注只显示备注、无备注回退文件夹名，不拼接），且推送签名纳入 label，手机网页项目列表显示备注名并在改备注后即时刷新；手机会话页（新建会话/历史会话详细）顶部标题显示当前工作区备注，无备注降级文件夹名，再降级原文。Directory Opus 适配：主进程注入 zc-dopus 模块，Windows 检测到 Opus（dopusrt/dopus）时，打开文件夹/资源管理器各入口（openInFileManager IPC、openInEditor explorer 的目录与文件分支）改由 dopusrt /acmd Go <path> NEWTAB=tofront 打开，文件传完整路径实现定位目录并选中（本机实测 2026-09-11），未装 Opus 行为不变。",
   "addFiles": [
     {
       "from": "src/renderer/zc-remarks.js",
       "to": "out/renderer/zcode-expand/zc-remarks.js",
       "description": "备注功能模块（注入到渲染层，暴露 window.__ZC_EXPAND__）"
+    },
+    {
+      "from": "src/main/zc-dopus.mjs",
+      "to": "out/main/zcode-expand/zc-dopus.mjs",
+      "description": "Directory Opus 接管模块（注入主进程，暴露 globalThis.__ZC_EXPAND_DOPUS__）"
     }
   ],
   "targets": [
@@ -183,6 +188,34 @@
           "replace": "JSON.stringify([se,J.kind,J.label??\"\",J.connectionState??\"connected\"",
           "expect": 1,
           "marker": "J.kind,J.label??\"\""
+        },
+        {
+          "note": "文件头注入 Opus 模块副作用 import（挂 globalThis.__ZC_EXPAND_DOPUS__）",
+          "find": "import{a as SN}from\"./chunk-KHSEGNJU.js\";",
+          "replace": "import\"./zcode-expand/zc-dopus.mjs\";import{a as SN}from\"./chunk-KHSEGNJU.js\";",
+          "expect": 1,
+          "marker": "import\"./zcode-expand/zc-dopus.mjs\";"
+        },
+        {
+          "note": "openPathViaShell（m4，openInEditor explorer 目录分支）：Opus 在时接管",
+          "find": "async function m4(e){let t=await _D.openPath(e);",
+          "replace": "async function m4(e){if(await globalThis.__ZC_EXPAND_DOPUS__?.(e))return{success:!0};let t=await _D.openPath(e);",
+          "expect": 1,
+          "marker": "__ZC_EXPAND_DOPUS__?.(e)"
+        },
+        {
+          "note": "openPathInFileManager（b4，openInFileManager IPC）：darwin 短路后、shell.openPath 前接管",
+          "find": "if(process.platform===\"darwin\")return I_e(n,t);let i=await k4.openPath(n);",
+          "replace": "if(process.platform===\"darwin\")return I_e(n,t);if(await globalThis.__ZC_EXPAND_DOPUS__?.(n))return{success:!0};let i=await k4.openPath(n);",
+          "expect": 1,
+          "marker": "__ZC_EXPAND_DOPUS__?.(n)"
+        },
+        {
+          "note": "openInEditor explorer 文件分支（原 explorer.exe /select,）：Go 传文件完整路径，由 Opus 定位目录并选中",
+          "find": "if(e===\"explorer\"){if(i!==\"file\")return m4(t);let a=[\"/select,\",t];",
+          "replace": "if(e===\"explorer\"){if(i!==\"file\")return m4(t);if(await globalThis.__ZC_EXPAND_DOPUS__?.(t))return{success:!0};let a=[\"/select,\",t];",
+          "expect": 1,
+          "marker": "__ZC_EXPAND_DOPUS__?.(t)"
         }
       ]
     }
