@@ -1,7 +1,7 @@
 {
   "appVersion": "3.11.2",
   "patchFormat": 1,
-  "summary": "项目列表备注 + 任务运行状态点：设置 schema 增加 projectRemarks 字段，项目行显示备注，行内「更多」菜单增加编辑入口；项目下有任务正在执行（creating/restoring/streaming）时项目行显示绿色脉冲点；web-remote-control 同步给 main 的项目 label 同样替换为备注，且推送签名纳入 label，手机网页项目列表显示备注名并在改备注后即时刷新。",
+  "summary": "项目列表备注 + 任务状态点：设置 schema 增加 projectRemarks 字段，项目行显示备注，行内「更多」菜单增加编辑入口；项目下有任务正在执行（与官方任务行 spinner 同源判定：__zcodeSessionActivity.phase ∈ prewarming/running）时项目行显示蓝色脉冲点（复用官方 sky 类），未在执行但有未读（多为任务完成待查看）时显示绿色静态点（复用官方 bg-success，沿官方 !n&&u 条件）；web-remote-control 同步给 main 的项目 label 同样替换为备注（手机屏幕小，有备注只显示备注、无备注回退文件夹名，不拼接），且推送签名纳入 label，手机网页项目列表显示备注名并在改备注后即时刷新；手机会话页（新建会话/历史会话详细）顶部标题显示当前工作区备注，无备注降级文件夹名，再降级原文。",
   "addFiles": [
     {
       "from": "src/renderer/zc-remarks.js",
@@ -116,18 +116,18 @@
           "marker": "__ZC_EXPAND__.edit("
         },
         {
-          "note": "计算项目运行状态（与官方移除确认框 uwt() 同源判定，经外置模块 isBusy）",
+          "note": "计算项目运行状态：与官方任务行 spinner（rbe）同源判定，输入 taskItems（prop s），经外置模块 isTaskListBusy",
           "find": "U=_wt(e),ie=g[V]??[]",
-          "replace": "U=_wt(e),zcXpBusy=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isBusy(T):!1,ie=g[V]??[]",
+          "replace": "U=_wt(e),zcXpBusy=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListBusy(s):!1,ie=g[V]??[]",
           "expect": 1,
-          "marker": "zcXpBusy=window.__ZC_EXPAND__"
+          "marker": "isTaskListBusy(s)"
         },
         {
-          "note": "未读蓝点之后渲染「任务执行中」绿点（自定义 zc-xp-running，样式由外置模块注入）",
-          "find": "dark:bg-sky-400`}):null,z?",
-          "replace": "dark:bg-sky-400`}):null,zcXpBusy?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-running-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full zc-xp-running`}):null,z?",
+          "note": "状态点状态机：任务执行中（宽判定）显示蓝点脉冲（官方 sky 类 + zc-xp-running），否则有未读（任务完成待查看）显示绿点静态（官方 bg-success），取代官方未读蓝点位置避免双点",
+          "find": "!n&&u?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-unread-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500 dark:bg-sky-400`}):null,z?",
+          "replace": "zcXpBusy?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-running-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500 dark:bg-sky-400 zc-xp-running`}):!n&&u?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-unread-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full bg-success zc-xp-done`}):null,z?",
           "expect": 1,
-          "marker": "data-workspace-running-indicator"
+          "marker": "zc-xp-running`}):!n&&u?"
         },
         {
           "note": "Root 组件体首行取 settings（复用 nx() hook），拿到 projectRemarks 供 web-remote-control 同步替换用",
@@ -137,18 +137,39 @@
           "marker": "zcXpSet=nx(),zcXpRemarks"
         },
         {
-          "note": "web-remote-control 同步（remote 子集，$qt 结果）：label 替换为备注（无备注/模块关闭时回退原名）",
+          "note": "web-remote-control 同步（remote 子集，$qt 结果）：label 替换为备注（remoteLabel：有备注给备注、无备注回退原名，不拼接）",
           "find": "let e=$qt({tabs:_});if(e.length>0&&s.syncWebRemoteControlWorkspaces(e),!S||!C)return;",
-          "replace": "let e=$qt({tabs:_});if(e.length>0&&s.syncWebRemoteControlWorkspaces(e.map(zcXpW=>({...zcXpW,label:window.__ZC_EXPAND__?window.__ZC_EXPAND__.label(zcXpW.label,zcXpW.workspacePath,zcXpRemarks):zcXpW.label}))),!S||!C)return;",
+          "replace": "let e=$qt({tabs:_});if(e.length>0&&s.syncWebRemoteControlWorkspaces(e.map(zcXpW=>({...zcXpW,label:window.__ZC_EXPAND__?window.__ZC_EXPAND__.remoteLabel(zcXpW.label,zcXpW.workspacePath,zcXpRemarks):zcXpW.label}))),!S||!C)return;",
           "expect": 1,
-          "marker": "zcXpW.label}))),!S||!C"
+          "marker": "remoteLabel(zcXpW.label,zcXpW.workspacePath,zcXpRemarks):zcXpW.label}))),!S"
         },
         {
-          "note": "web-remote-control 同步（全量，Qqt 结果）替换 label；effect 依赖加 remarks 引用，改备注即重新同步",
+          "note": "web-remote-control 同步（全量，Qqt 结果）替换 label（remoteLabel 不拼接）；effect 依赖加 remarks 引用，改备注即重新同步",
           "find": "s.syncWebRemoteControlWorkspaces(t)},[w,h,s,v,b,_,S,C])",
-          "replace": "s.syncWebRemoteControlWorkspaces(t.map(zcXpW=>({...zcXpW,label:window.__ZC_EXPAND__?window.__ZC_EXPAND__.label(zcXpW.label,zcXpW.workspacePath,zcXpRemarks):zcXpW.label})))},[w,h,s,v,b,_,S,C,zcXpRemarks])",
+          "replace": "s.syncWebRemoteControlWorkspaces(t.map(zcXpW=>({...zcXpW,label:window.__ZC_EXPAND__?window.__ZC_EXPAND__.remoteLabel(zcXpW.label,zcXpW.workspacePath,zcXpRemarks):zcXpW.label})))},[w,h,s,v,b,_,S,C,zcXpRemarks])",
           "expect": 1,
-          "marker": "zcXpRemarks])"
+          "marker": "remoteLabel(zcXpW.label,zcXpW.workspacePath,zcXpRemarks):zcXpW.label})))},[w"
+        },
+        {
+          "note": "手机会话壳 Xgt 声明区注入标题派生 state：listWorkspaces 结果按 workspacePath 匹配取 label（main 推送侧已替换为备注/原名），降级 Ge(path) 文件夹名",
+          "find": "let{intl:h}=K(),[g,_]=(0,Q.useState)(()=>Ygt(a)),",
+          "replace": "let{intl:h}=K(),[zcXpW,zcXpSW]=(0,Q.useState)(o?.workspaces??[]),zcXpTtl=(0,Q.useMemo)(()=>n?zcXpW.find(zcW=>zcW.workspacePath===n)?.label||Ge(n):null,[zcXpW,n]),[g,_]=(0,Q.useState)(()=>Ygt(a)),",
+          "expect": 1,
+          "marker": "zcXpTtl=(0,Q.useMemo)(()=>n?zcXpW.find"
+        },
+        {
+          "note": "Xgt return 链首追加 effect：mount/回首页（refreshKey b 变化）时拉 listWorkspaces 更新标题列表，失败静默由标题降级链兜底",
+          "find": "return(0,Q.useEffect)(()=>{a===`chat`&&D()},[a,D])",
+          "replace": "return(0,Q.useEffect)(()=>{p.listWorkspaces().then(zcR=>zcXpSW(zcR.workspaces??[])).catch(()=>{})},[p,b]),(0,Q.useEffect)(()=>{a===`chat`&&D()},[a,D])",
+          "expect": 1,
+          "marker": "zcXpSW(zcR.workspaces??[])).catch"
+        },
+        {
+          "note": "手机会话页（新建会话/历史会话详细共用 chat 分支）顶部标题：优先备注/文件夹名，取不到回退原文「任务会话」",
+          "find": "(0,$.jsx)(`span`,{className:`min-w-0 flex-1 truncate text-ui-base font-medium`,children:h.formatMessage({id:`webRemoteControl.mobileShell.chatTitle`})})",
+          "replace": "(0,$.jsx)(`span`,{className:`min-w-0 flex-1 truncate text-ui-base font-medium`,children:zcXpTtl??h.formatMessage({id:`webRemoteControl.mobileShell.chatTitle`})})",
+          "expect": 1,
+          "marker": "children:zcXpTtl??h.formatMessage({id:`webRemoteControl.mobileShell.chatTitle`})"
         }
       ]
     },

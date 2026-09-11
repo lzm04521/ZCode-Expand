@@ -7,12 +7,15 @@
  * 对外契约：
  *   label(folderName, workspacePath, remarks) -> string
  *       项目行显示文本。无备注时原样返回 folderName。
+ *   remoteLabel(folderName, workspacePath, remarks) -> string
+ *       web-remote-control（手机网页）项目列表用。手机屏幕小、
+ *       不拼接：有备注返回备注本身，无备注返回 folderName。
  *   edit({ name, current, onSave }) -> void
  *       弹出编辑对话框；onSave(next) 在用户保存时调用（next 为空串表示清除）。
- *   isBusy(workspaceState) -> boolean
- *       项目是否有正在执行的任务。判定与官方"移除运行中 workspace"确认框
- *       同源：draftRuntime.status 或任一 taskRuntimeByTaskId[*].status
- *       处于 runningStates（默认 creating/restoring/streaming）即认为运行中。
+ *   isTaskListBusy(taskItems) -> boolean
+ *       项目下是否有正在执行的任务。与官方任务行 spinner（rbe）同源判定：
+ *       任一 task 的 __zcodeSessionActivity.phase 处于 prewarming/running 即
+ *       运行中。输入是 WorkspaceSidebarItem 的 taskItems prop。
  *   diag() -> object
  *       自检信息，便于确认注入是否生效。
  * ---------------------------------------------------------------------------
@@ -20,11 +23,11 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.1.0';
+  var VERSION = '1.3.1';
 
   // localStorage 覆盖：可在不改包、不重新 apply 的情况下临时调参或整体关掉。
   //   localStorage.setItem('zcode-expand.remarks', JSON.stringify({enabled:false}))
-  //   localStorage.setItem('zcode-expand.remarks', JSON.stringify({runningStates:['streaming']}))
+  //   localStorage.setItem('zcode-expand.remarks', JSON.stringify({runningDot:{color:'#38bdf8'}}))
   // 改完执行 window.__ZC_EXPAND__.reload() 生效（或刷新窗口）。
   var OVERRIDE_KEY = 'zcode-expand.remarks';
 
@@ -39,13 +42,15 @@
     dialogHint: '留空保存即清除备注。备注写入设置文件，随应用设置一起保存。',
     placeholder: '例如：生产环境',
     maxLength: 80,
-    // 认定为「正在执行」的任务状态集合。与官方 uwt()（移除运行中 workspace
-    // 确认框）的判定保持同源：creating/restoring/streaming。
-    runningStates: ['creating', 'restoring', 'streaming'],
-    // 运行状态点样式（class zc-xp-running，由本模块注入 <style>）。
-    // 颜色优先应用主题变量，取不到用兜底绿色。
+    // 运行中蓝点（zc-xp-running，脉冲动画由本模块注入）。颜色默认走补丁里
+    // 的官方类 bg-sky-500 dark:bg-sky-400（与官方未读点一致）；这里只作
+    // 覆盖钩子，显式给颜色才注入 background 规则。
     runningDot: {
-      color: 'var(--color-success, #22c55e)',
+      color: '',
+    },
+    // 完成待查看绿点（zc-xp-done，静态）。默认走官方类 bg-success。
+    doneDot: {
+      color: '',
     },
     // 兜底配色：优先使用应用自身的主题变量，取不到时用这些值
     fallback: {
@@ -74,14 +79,11 @@
       if (typeof parsed.dialogTitle === 'string') CONFIG.dialogTitle = parsed.dialogTitle;
       if (typeof parsed.dialogHint === 'string') CONFIG.dialogHint = parsed.dialogHint;
       if (typeof parsed.placeholder === 'string') CONFIG.placeholder = parsed.placeholder;
-      if (Array.isArray(parsed.runningStates)) {
-        var states = parsed.runningStates.filter(function (s) {
-          return typeof s === 'string' && s.length > 0;
-        });
-        if (states.length > 0) CONFIG.runningStates = states;
-      }
       if (parsed.runningDot && typeof parsed.runningDot === 'object') {
         if (typeof parsed.runningDot.color === 'string') CONFIG.runningDot.color = parsed.runningDot.color;
+      }
+      if (parsed.doneDot && typeof parsed.doneDot === 'object') {
+        if (typeof parsed.doneDot.color === 'string') CONFIG.doneDot.color = parsed.doneDot.color;
       }
       if (parsed.fallback && typeof parsed.fallback === 'object') {
         Object.keys(parsed.fallback).forEach(function (key) {
@@ -122,45 +124,57 @@
     }
   }
 
+  function remoteLabel(folderName, workspacePath, remarks) {
+    var base = typeof folderName === 'string' ? folderName : '';
+    if (!CONFIG.enabled) return base;
+    if (!workspacePath || !remarks || typeof remarks !== 'object') return base;
+    // 手机网页屏幕小，不与文件夹名拼接：有备注给备注，没有给原名
+    return normalizeRemark(remarks[workspacePath]) || base;
+  }
+
   // ---------------------------------------------------------------------------
   // 任务运行状态点
   // ---------------------------------------------------------------------------
 
-  function isBusy(workspaceState) {
+  function isTaskListBusy(taskItems) {
     if (!CONFIG.enabled) return false;
-    if (!workspaceState || typeof workspaceState !== 'object') return false;
-    var states = CONFIG.runningStates;
-    var draft = workspaceState.draftRuntime;
-    if (draft && typeof draft === 'object' && states.indexOf(draft.status) !== -1) return true;
-    var byTaskId = workspaceState.taskRuntimeByTaskId;
-    if (byTaskId && typeof byTaskId === 'object') {
-      for (var key in byTaskId) {
-        if (!Object.prototype.hasOwnProperty.call(byTaskId, key)) continue;
-        var runtime = byTaskId[key];
-        if (runtime && typeof runtime === 'object' && states.indexOf(runtime.status) !== -1) {
-          return true;
-        }
+    if (!Array.isArray(taskItems)) return false;
+    for (var i = 0; i < taskItems.length; i++) {
+      var task = taskItems[i];
+      if (!task || typeof task !== 'object') continue;
+      var activity = task.__zcodeSessionActivity;
+      if (activity && typeof activity === 'object') {
+        var phase = activity.phase;
+        if (phase === 'prewarming' || phase === 'running') return true;
       }
     }
     return false;
   }
 
-  // 运行点的 class 是自定义的 zc-xp-running：不依赖应用 CSS 里是否存在
-  // emerald/pulse 等 Tailwind 类（JIT 按需生成，未用过的类不会有 CSS），
-  // 颜色跟随主题变量，动画尊重系统"减少动态效果"偏好。
+  // 运行点/完成点的动画与可选配色覆盖（class zc-xp-running / zc-xp-done）。
+  // 颜色默认走补丁里复用的官方类（bg-sky-500 dark:bg-sky-400 / bg-success），
+  // 只有显式配置了颜色才注入 background 规则（非 layer 规则可覆盖
+  // Tailwind utilities）。动画尊重系统"减少动态效果"偏好。
   function ensureRunningDotStyle() {
     var STYLE_ID = 'zc-xp-running-style';
     // 已存在时先移除，保证 reload() 改配置后能按新参数重建
     var existing = document.getElementById(STYLE_ID);
     if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
     if (!CONFIG.enabled) return;
-    var el = document.createElement('style');
-    el.id = STYLE_ID;
-    el.textContent = [
-      '.zc-xp-running{background:' + CONFIG.runningDot.color + ';animation:zc-xp-pulse 2s cubic-bezier(.4,0,.6,1) infinite}',
+    var rules = [
+      '.zc-xp-running{animation:zc-xp-pulse 2s cubic-bezier(.4,0,.6,1) infinite}',
       '@keyframes zc-xp-pulse{50%{opacity:.35}}',
       '@media (prefers-reduced-motion: reduce){.zc-xp-running{animation:none;opacity:.85}}',
-    ].join('\n');
+    ];
+    if (CONFIG.runningDot.color) {
+      rules.push('.zc-xp-running{background:' + CONFIG.runningDot.color + '}');
+    }
+    if (CONFIG.doneDot && CONFIG.doneDot.color) {
+      rules.push('.zc-xp-done{background:' + CONFIG.doneDot.color + '}');
+    }
+    var el = document.createElement('style');
+    el.id = STYLE_ID;
+    el.textContent = rules.join('\n');
     document.head.appendChild(el);
   }
 
@@ -355,8 +369,8 @@
         enabled: CONFIG.enabled,
         maxLength: CONFIG.maxLength,
         dialogTitle: CONFIG.dialogTitle,
-        runningStates: CONFIG.runningStates,
-        runningDotColor: CONFIG.runningDot.color,
+        runningDotColor: CONFIG.runningDot.color || '(official sky)',
+        doneDotColor: CONFIG.doneDot.color || '(official success)',
       },
     };
   }
@@ -369,8 +383,9 @@
     version: VERSION,
     config: CONFIG,
     label: label,
+    remoteLabel: remoteLabel,
     edit: edit,
-    isBusy: isBusy,
+    isTaskListBusy: isTaskListBusy,
     diag: diag,
     reload: function () {
       currentOverrideRaw = applyOverrides();
