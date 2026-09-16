@@ -114,25 +114,25 @@
           "marker": "children:zcXpLabel})"
         },
         {
-          "note": "「更多」菜单在同步项之后插入「编辑备注」（菜单组件 Z$→O1，参数 se/de/pe/he→oe/ue/fe/me，菜单项 rt→Io）",
+          "note": "「更多」菜单在同步项之后插入「编辑备注」（菜单组件 Z$→O1，参数 se/de/pe/he→oe/ue/fe/me，菜单项 rt→Io）。v2：备注真身改存 localStorage（模块 set() 返回全量 map），settings 副本仅作刷新触发器；回显优先读模块 remarks()",
           "find": "(0,$.jsx)(O1,{canSyncSkills:oe,canSyncMcp:oe,canSyncPlugins:oe,stopMouseDownPropagation:!0,onOpenSkillSync:()=>ue(!0),onOpenMcpSync:()=>fe(!0),onOpenPluginSync:()=>me(!0)}),",
-          "replace": "(0,$.jsx)(O1,{canSyncSkills:oe,canSyncMcp:oe,canSyncPlugins:oe,stopMouseDownPropagation:!0,onOpenSkillSync:()=>ue(!0),onOpenMcpSync:()=>fe(!0),onOpenPluginSync:()=>me(!0)}),(0,$.jsxs)(Io,{onMouseDown:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation()},onSelect:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation(),window.__ZC_EXPAND__&&window.__ZC_EXPAND__.edit({name:e.workspacePath,current:zcXp.settings&&zcXp.settings.projectRemarks&&zcXp.settings.projectRemarks[e.workspacePath]||``,onSave:zcXpNext=>{let zcXpMap=Object.assign({},zcXp.settings&&zcXp.settings.projectRemarks||{});if(zcXpNext)zcXpMap[e.workspacePath]=zcXpNext;else delete zcXpMap[e.workspacePath];zcXp.update({projectRemarks:zcXpMap})}})},children:[`编辑备注`]}),",
+          "replace": "(0,$.jsx)(O1,{canSyncSkills:oe,canSyncMcp:oe,canSyncPlugins:oe,stopMouseDownPropagation:!0,onOpenSkillSync:()=>ue(!0),onOpenMcpSync:()=>fe(!0),onOpenPluginSync:()=>me(!0)}),(0,$.jsxs)(Io,{onMouseDown:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation()},onSelect:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation(),window.__ZC_EXPAND__&&window.__ZC_EXPAND__.edit({name:e.workspacePath,current:(window.__ZC_EXPAND__?window.__ZC_EXPAND__.remarks():(zcXp.settings&&zcXp.settings.projectRemarks||{}))[e.workspacePath]||``,onSave:zcXpNext=>{zcXp.update({projectRemarks:window.__ZC_EXPAND__?window.__ZC_EXPAND__.set(e.workspacePath,zcXpNext):{}})}})},children:[`编辑备注`]}),",
           "expect": 1,
-          "marker": "__ZC_EXPAND__.edit("
+          "marker": "__ZC_EXPAND__.set(e.workspacePath"
         },
         {
-          "note": "计算项目运行状态：与官方任务行 spinner 同源判定，输入 taskItems（prop s），经外置模块 isTaskListBusy（3.12.2 prop s 仍是 taskItems）",
+          "note": "计算项目运行状态：与官方任务行 spinner 同源判定，输入 taskItems（prop s），经外置模块 isTaskListBusy；v2 增加 zcXpDone（完成待查看，自判定 unreadAt，脱离官方 taskListHasUnread 的清除时机）（3.12.2 prop s 仍是 taskItems）",
           "find": "H=EDt(e),re=g[z]??[]",
-          "replace": "H=EDt(e),zcXpBusy=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListBusy(s):!1,re=g[z]??[]",
+          "replace": "H=EDt(e),zcXpBusy=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListBusy(s):!1,zcXpDone=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListDone(s):!1,re=g[z]??[]",
           "expect": 1,
-          "marker": "isTaskListBusy(s)"
+          "marker": "isTaskListDone(s)"
         },
         {
-          "note": "状态点状态机：任务执行中（宽判定）显示蓝点脉冲（官方 sky 类 + zc-xp-running），否则有未读（任务完成待查看）显示绿点静态（官方 bg-success），取代官方未读蓝点位置避免双点（尾部 z→R）",
+          "note": "状态点状态机：任务执行中（宽判定）显示蓝点脉冲（官方 sky 类 + zc-xp-running）；完成待查看改用自判定 zcXpDone 显示绿点静态（官方 bg-success）——3.12.2 官方 taskListHasUnread 点击项目即清导致绿点一触即消，自判定只跟随任务 unreadAt，点开任务查看或下轮开跑才消失（还原 3.11.2 行为）",
           "find": "!n&&u?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-unread-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500 dark:bg-sky-400`}):null,R?",
-          "replace": "zcXpBusy?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-running-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500 dark:bg-sky-400 zc-xp-running`}):!n&&u?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-unread-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full bg-success zc-xp-done`}):null,R?",
+          "replace": "zcXpBusy?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-running-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500 dark:bg-sky-400 zc-xp-running`}):zcXpDone?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-done-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full bg-success zc-xp-done`}):null,R?",
           "expect": 1,
-          "marker": "zc-xp-running`}):!n&&u?"
+          "marker": "zc-xp-running`}):zcXpDone?"
         },
         {
           "note": "hJt（web-remote 同步 effect 宿主组件，即 3.11.2 的 Root）体首取 settings：挂 let O=useRef(!1) 声明链（v3 教训：用 acorn AST 确认声明与使用的函数链——effect 在 hJt@4584288 内，v3 误挂 T9@4455775、v2 误挂内层 fYt。3.11.2 同构锚 hasCompletedFullTabRestore:w=!0,intl:T}){let E=...；3.12.2 别名 w/T→T/E 且 intl 后多 isRestoringOAuthSession:D、let 链用逗号续写）",

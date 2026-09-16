@@ -5,17 +5,31 @@
  * 因此调整行为/样式只需改本文件并重新 apply，不必重新定位压缩代码。
  *
  * 对外契约：
- *   label(folderName, workspacePath, remarks) -> string
- *       项目行显示文本。有备注只显示备注本身，无备注时原样返回 folderName。
- *   remoteLabel(folderName, workspacePath, remarks) -> string
- *       web-remote-control（手机网页）项目列表用。手机屏幕小、
+ *   label(folderName, workspacePath, remarksFallback) -> string
+ *       项目行显示文本。备注真身存 localStorage（zcode-expand.remarks.data，
+ *       落在 %APPDATA%\zcode，升级 ZCode 不受影响）；localStorage 无记录时回退
+ *       remarksFallback（settings 里的 projectRemarks 副本），回退命中时顺手
+ *       种子导入 localStorage（旧数据一次性迁移）。有备注只显示备注本身。
+ *   remoteLabel(folderName, workspacePath, remarksFallback) -> string
+ *       web-remote-control（手机网页）项目列表用，存储策略同上；手机屏幕小、
  *       不拼接：有备注返回备注本身，无备注返回 folderName。
+ *   set(workspacePath, text) -> map
+ *       写入/清除（text 为空串即清除）一条备注到 localStorage，返回全量 map。
+ *       调用方（包内补丁）拿到 map 后照旧 zcXp.update({projectRemarks: map})——
+ *       settings 副本只作 UI 刷新触发器，升级时被官方 schema 剥掉也不影响数据。
+ *   remarks() -> map
+ *       返回 localStorage 中的全量备注（编辑对话框回显用）。
  *   edit({ name, current, onSave }) -> void
  *       弹出编辑对话框；onSave(next) 在用户保存时调用（next 为空串表示清除）。
  *   isTaskListBusy(taskItems) -> boolean
  *       项目下是否有正在执行的任务。与官方任务行 spinner（rbe）同源判定：
  *       任一 task 的 __zcodeSessionActivity.phase 处于 prewarming/running 即
  *       运行中。输入是 WorkspaceSidebarItem 的 taskItems prop。
+ *   isTaskListDone(taskItems) -> boolean
+ *       项目行绿点（完成待查看）：任一任务不在运行且带未读标记（unreadAt 为
+ *       数字，与官方 hasUnread 同源）。刻意不用官方 taskListHasUnread——它的
+ *       清除时机随版本变化（3.12.2 点击项目即清），自判定只跟随任务本身的
+ *       未读状态：点开任务查看（官方清 unreadAt）或下一轮开跑才消失。
  *   diag() -> object
  *       自检信息，便于确认注入是否生效。
  * ---------------------------------------------------------------------------
@@ -23,7 +37,13 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.3.2';
+  var VERSION = '1.4.0';
+
+  // 备注数据真身的 localStorage key。localStorage 落在 %APPDATA%\zcode（Electron
+  // userData），与安装目录、~/.zcode 均无关：升级 ZCode 官方会剥掉 setting.json 里
+  // 不认识的 projectRemarks（3.11.2→3.12.2 实测丢数据），localStorage 不经过官方
+  // schema，不受影响。
+  var STORE_KEY = 'zcode-expand.remarks.data';
 
   // localStorage 覆盖：可在不改包、不重新 apply 的情况下临时调参或整体关掉。
   //   localStorage.setItem('zcode-expand.remarks', JSON.stringify({enabled:false}))
@@ -110,11 +130,67 @@
     return value.replace(/[\r\n\t]+/g, ' ').trim();
   }
 
-  function label(folderName, workspacePath, remarks) {
+  // ---------------------------------------------------------------------------
+  // 备注存储（localStorage 为真身）
+  // ---------------------------------------------------------------------------
+
+  function readStore() {
+    try {
+      var raw = window.localStorage.getItem(STORE_KEY);
+      if (!raw) return {};
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+      return parsed;
+    } catch (err) {
+      console.warn('[ZCode-Expand] 读取备注存储失败：', err);
+      return {};
+    }
+  }
+
+  function writeStore(map) {
+    try {
+      window.localStorage.setItem(STORE_KEY, JSON.stringify(map));
+    } catch (err) {
+      // 写失败要让上层知道数据没落盘，而不是静默当作成功
+      console.error('[ZCode-Expand] 写入备注存储失败：', err);
+    }
+  }
+
+  function remarks() {
+    return readStore();
+  }
+
+  /** 写入/清除一条备注，返回全量 map（供调用方喂给 settings 副本触发刷新） */
+  function set(workspacePath, text) {
+    var map = readStore();
+    var value = normalizeRemark(text);
+    if (value) map[workspacePath] = value;
+    else delete map[workspacePath];
+    writeStore(map);
+    return map;
+  }
+
+  /** localStorage 无记录时回退 settings 副本，命中则种子导入（旧数据一次性迁移） */
+  function lookupRemark(workspacePath, remarksFallback) {
+    var store = readStore();
+    var remark = normalizeRemark(store[workspacePath]);
+    if (remark) return remark;
+    if (remarksFallback && typeof remarksFallback === 'object') {
+      remark = normalizeRemark(remarksFallback[workspacePath]);
+      if (remark) {
+        store[workspacePath] = remark;
+        writeStore(store);
+        console.info('[ZCode-Expand] 已从 settings 副本迁移备注：', workspacePath);
+      }
+    }
+    return remark;
+  }
+
+  function label(folderName, workspacePath, remarksFallback) {
     var base = typeof folderName === 'string' ? folderName : '';
     if (!CONFIG.enabled) return base;
-    if (!workspacePath || !remarks || typeof remarks !== 'object') return base;
-    var remark = normalizeRemark(remarks[workspacePath]);
+    if (!workspacePath) return base;
+    var remark = lookupRemark(workspacePath, remarksFallback);
     if (!remark) return base;
     try {
       return CONFIG.format(remark, base);
@@ -125,12 +201,12 @@
     }
   }
 
-  function remoteLabel(folderName, workspacePath, remarks) {
+  function remoteLabel(folderName, workspacePath, remarksFallback) {
     var base = typeof folderName === 'string' ? folderName : '';
     if (!CONFIG.enabled) return base;
-    if (!workspacePath || !remarks || typeof remarks !== 'object') return base;
+    if (!workspacePath) return base;
     // 手机网页屏幕小，不与文件夹名拼接：有备注给备注，没有给原名
-    return normalizeRemark(remarks[workspacePath]) || base;
+    return lookupRemark(workspacePath, remarksFallback) || base;
   }
 
   // ---------------------------------------------------------------------------
@@ -148,6 +224,27 @@
         var phase = activity.phase;
         if (phase === 'prewarming' || phase === 'running') return true;
       }
+    }
+    return false;
+  }
+
+  // 完成待查看（绿点）：任务不在运行且带未读标记。未读判定与官方 hasUnread
+  // 同源（typeof unreadAt === 'number'），先看 taskMeta.unreadAt（官方数据层
+  // 优先写这里），回退顶层 unreadAt。
+  function isTaskListDone(taskItems) {
+    if (!CONFIG.enabled) return false;
+    if (!Array.isArray(taskItems)) return false;
+    for (var i = 0; i < taskItems.length; i++) {
+      var task = taskItems[i];
+      if (!task || typeof task !== 'object') continue;
+      var activity = task.__zcodeSessionActivity;
+      var phase = activity && typeof activity === 'object' ? activity.phase : undefined;
+      if (phase === 'prewarming' || phase === 'running') continue;
+      var meta = task.taskMeta && typeof task.taskMeta === 'object' ? task.taskMeta : null;
+      var unreadAt = meta && typeof meta.unreadAt === 'number'
+        ? meta.unreadAt
+        : (typeof task.unreadAt === 'number' ? task.unreadAt : undefined);
+      if (typeof unreadAt === 'number') return true;
     }
     return false;
   }
@@ -358,6 +455,7 @@
   }
 
   function diag() {
+    var store = readStore();
     return {
       module: 'zcode-expand/remarks',
       version: VERSION,
@@ -365,6 +463,10 @@
       override: {
         key: OVERRIDE_KEY,
         raw: currentOverrideRaw,
+      },
+      storage: {
+        key: STORE_KEY,
+        entries: Object.keys(store).length,
       },
       config: {
         enabled: CONFIG.enabled,
@@ -385,8 +487,11 @@
     config: CONFIG,
     label: label,
     remoteLabel: remoteLabel,
+    set: set,
+    remarks: remarks,
     edit: edit,
     isTaskListBusy: isTaskListBusy,
+    isTaskListDone: isTaskListDone,
     diag: diag,
     reload: function () {
       currentOverrideRaw = applyOverrides();
