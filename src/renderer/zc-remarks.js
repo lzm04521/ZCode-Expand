@@ -5,20 +5,20 @@
  * 因此调整行为/样式只需改本文件并重新 apply，不必重新定位压缩代码。
  *
  * 对外契约：
- *   label(folderName, workspacePath, remarksFallback) -> string
- *       项目行显示文本。备注真身存 localStorage（zcode-expand.remarks.data，
- *       落在 %APPDATA%\zcode，升级 ZCode 不受影响）；localStorage 无记录时回退
- *       remarksFallback（settings 里的 projectRemarks 副本），回退命中时顺手
- *       种子导入 localStorage（旧数据一次性迁移）。有备注只显示备注本身。
- *   remoteLabel(folderName, workspacePath, remarksFallback) -> string
- *       web-remote-control（手机网页）项目列表用，存储策略同上；手机屏幕小、
+ *   label(folderName, workspacePath, remarks) -> string
+ *       项目行显示文本。remarks 即数据真身（host 进程读点已把
+ *       ~/.zcode/v2/zcode-expand.json 的 projectRemarks 并进 settings）。
+ *       有备注只显示备注本身，无备注时原样返回 folderName。
+ *   remoteLabel(folderName, workspacePath, remarks) -> string
+ *       web-remote-control（手机网页）项目列表用，数据同上；手机屏幕小、
  *       不拼接：有备注返回备注本身，无备注返回 folderName。
- *   set(workspacePath, text) -> map
- *       写入/清除（text 为空串即清除）一条备注到 localStorage，返回全量 map。
- *       调用方（包内补丁）拿到 map 后照旧 zcXp.update({projectRemarks: map})——
- *       settings 副本只作 UI 刷新触发器，升级时被官方 schema 剥掉也不影响数据。
+ *   migrate(settingsHook) -> 0|1
+ *       一次性迁移：把 v1.4 存在 localStorage（zcode-expand.remarks.data）的
+ *       备注并进 settings.projectRemarks（经官方 update IPC 落到 host 进程的
+ *       zcode-expand.json），成功后删除 localStorage key。settings 未加载完
+ *       （loading）时跳过待下次，失败保留数据下次启动重试。
  *   remarks() -> map
- *       返回 localStorage 中的全量备注（编辑对话框回显用）。
+ *       返回 localStorage 迁移源的余量（调试用；v1.5 起真身在 JSON 文件）。
  *   edit({ name, current, onSave }) -> void
  *       弹出编辑对话框；onSave(next) 在用户保存时调用（next 为空串表示清除）。
  *   isTaskListBusy(taskItems) -> boolean
@@ -37,12 +37,11 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.4.0';
+  var VERSION = '1.5.0';
 
-  // 备注数据真身的 localStorage key。localStorage 落在 %APPDATA%\zcode（Electron
-  // userData），与安装目录、~/.zcode 均无关：升级 ZCode 官方会剥掉 setting.json 里
-  // 不认识的 projectRemarks（3.11.2→3.12.2 实测丢数据），localStorage 不经过官方
-  // schema，不受影响。
+  // v1.4 遗留的 localStorage 存储键：现在只作迁移源（真身在 host 进程的
+  // ~/.zcode/v2/zcode-expand.json，由包内补丁的读/写挂钩提供）。migrate() 成功
+  // 后会删除该 key。
   var STORE_KEY = 'zcode-expand.remarks.data';
 
   // localStorage 覆盖：可在不改包、不重新 apply 的情况下临时调参或整体关掉。
@@ -131,10 +130,11 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 备注存储（localStorage 为真身）
+  // 显示名（remarks 参数即真身：host 读点已并入 zcode-expand.json）
   // ---------------------------------------------------------------------------
 
-  function readStore() {
+  /** v1.4 遗留的 localStorage 数据（迁移源），仅供 migrate 与调试读取 */
+  function readMigrationSource() {
     try {
       var raw = window.localStorage.getItem(STORE_KEY);
       if (!raw) return {};
@@ -142,55 +142,20 @@
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
       return parsed;
     } catch (err) {
-      console.warn('[ZCode-Expand] 读取备注存储失败：', err);
+      console.warn('[ZCode-Expand] 读取 localStorage 迁移源失败：', err);
       return {};
     }
   }
 
-  function writeStore(map) {
-    try {
-      window.localStorage.setItem(STORE_KEY, JSON.stringify(map));
-    } catch (err) {
-      // 写失败要让上层知道数据没落盘，而不是静默当作成功
-      console.error('[ZCode-Expand] 写入备注存储失败：', err);
-    }
-  }
-
   function remarks() {
-    return readStore();
+    return readMigrationSource();
   }
 
-  /** 写入/清除一条备注，返回全量 map（供调用方喂给 settings 副本触发刷新） */
-  function set(workspacePath, text) {
-    var map = readStore();
-    var value = normalizeRemark(text);
-    if (value) map[workspacePath] = value;
-    else delete map[workspacePath];
-    writeStore(map);
-    return map;
-  }
-
-  /** localStorage 无记录时回退 settings 副本，命中则种子导入（旧数据一次性迁移） */
-  function lookupRemark(workspacePath, remarksFallback) {
-    var store = readStore();
-    var remark = normalizeRemark(store[workspacePath]);
-    if (remark) return remark;
-    if (remarksFallback && typeof remarksFallback === 'object') {
-      remark = normalizeRemark(remarksFallback[workspacePath]);
-      if (remark) {
-        store[workspacePath] = remark;
-        writeStore(store);
-        console.info('[ZCode-Expand] 已从 settings 副本迁移备注：', workspacePath);
-      }
-    }
-    return remark;
-  }
-
-  function label(folderName, workspacePath, remarksFallback) {
+  function label(folderName, workspacePath, remarks) {
     var base = typeof folderName === 'string' ? folderName : '';
     if (!CONFIG.enabled) return base;
-    if (!workspacePath) return base;
-    var remark = lookupRemark(workspacePath, remarksFallback);
+    if (!workspacePath || !remarks || typeof remarks !== 'object') return base;
+    var remark = normalizeRemark(remarks[workspacePath]);
     if (!remark) return base;
     try {
       return CONFIG.format(remark, base);
@@ -201,12 +166,63 @@
     }
   }
 
-  function remoteLabel(folderName, workspacePath, remarksFallback) {
+  function remoteLabel(folderName, workspacePath, remarks) {
     var base = typeof folderName === 'string' ? folderName : '';
     if (!CONFIG.enabled) return base;
-    if (!workspacePath) return base;
+    if (!workspacePath || !remarks || typeof remarks !== 'object') return base;
     // 手机网页屏幕小，不与文件夹名拼接：有备注给备注，没有给原名
-    return lookupRemark(workspacePath, remarksFallback) || base;
+    return normalizeRemark(remarks[workspacePath]) || base;
+  }
+
+  // ---------------------------------------------------------------------------
+  // v1.4 → v1.5 存储迁移（localStorage → host 的 zcode-expand.json）
+  // ---------------------------------------------------------------------------
+
+  var migrationDone = false;
+
+  /**
+   * 把 localStorage 里的旧备注并进 settings.projectRemarks（走官方 update IPC，
+   * host 写点会拆出落到 ~/.zcode/v2/zcode-expand.json），成功后清除 localStorage。
+   * settings 未加载完（loading）时不置完成标记，等下一次渲染重试。
+   */
+  function migrate(settingsHook) {
+    if (migrationDone || !CONFIG.enabled) return 0;
+    if (!settingsHook || typeof settingsHook.update !== 'function') return 0;
+    var settings = settingsHook.settings;
+    if (!settings || typeof settings !== 'object') return 0;
+
+    var legacy = readMigrationSource();
+    var legacyKeys = Object.keys(legacy);
+    var current = settings.projectRemarks && typeof settings.projectRemarks === 'object'
+      ? settings.projectRemarks
+      : {};
+    var merged = {};
+    Object.keys(current).forEach(function (key) {
+      var value = normalizeRemark(current[key]);
+      if (value) merged[key] = value;
+    });
+    var changed = false;
+    legacyKeys.forEach(function (key) {
+      var value = normalizeRemark(legacy[key]);
+      if (value && merged[key] !== value) {
+        merged[key] = value;
+        changed = true;
+      }
+    });
+    migrationDone = true;
+    if (!changed && legacyKeys.length === 0) return 0;
+
+    // setTimeout 避开 render 阶段同步触发 settings 更新
+    window.setTimeout(function () {
+      settingsHook.update({ projectRemarks: merged }).then(function () {
+        try { window.localStorage.removeItem(STORE_KEY); } catch (err) { /* ignore */ }
+        console.info('[ZCode-Expand] localStorage 备注已迁移到 ~/.zcode/v2/zcode-expand.json');
+      }).catch(function (err) {
+        console.warn('[ZCode-Expand] 备注迁移失败（localStorage 数据保留，下次启动重试）：', err);
+        migrationDone = false;
+      });
+    }, 0);
+    return 1;
   }
 
   // ---------------------------------------------------------------------------
@@ -455,7 +471,6 @@
   }
 
   function diag() {
-    var store = readStore();
     return {
       module: 'zcode-expand/remarks',
       version: VERSION,
@@ -465,8 +480,8 @@
         raw: currentOverrideRaw,
       },
       storage: {
-        key: STORE_KEY,
-        entries: Object.keys(store).length,
+        jsonFile: '~/.zcode/v2/zcode-expand.json',
+        migrationSourceEntries: Object.keys(readMigrationSource()).length,
       },
       config: {
         enabled: CONFIG.enabled,
@@ -487,7 +502,7 @@
     config: CONFIG,
     label: label,
     remoteLabel: remoteLabel,
-    set: set,
+    migrate: migrate,
     remarks: remarks,
     edit: edit,
     isTaskListBusy: isTaskListBusy,

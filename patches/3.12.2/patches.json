@@ -12,6 +12,11 @@
       "from": "src/main/zc-dopus.mjs",
       "to": "out/main/zcode-expand/zc-dopus.mjs",
       "description": "Directory Opus 接管模块（注入主进程，暴露 globalThis.__ZC_EXPAND_DOPUS__）"
+    },
+    {
+      "from": "src/main/zc-store.mjs",
+      "to": "out/host/zcode-expand/zc-store.mjs",
+      "description": "备注独立存储模块（注入 host 进程，暴露 globalThis.__ZC_XP_STORE__，真身 ~/.zcode/v2/zcode-expand.json）"
     }
   ],
   "targets": [
@@ -93,11 +98,11 @@
       "description": "项目列表行（WorkspaceSidebarItem 内部 DDt）+ Root + 手机会话壳：读取设置、按备注生成显示名、编辑入口、运行状态点、web-remote 同步替换 label、手机端标题（3.11.2 styles-DyAcaLKy → styles-pARxt8cp）",
       "edits": [
         {
-          "note": "在项目行组件内取设置服务（3.12.2 settings hook：nx→ZC；行组件首行 K/jo/ko→q/Ac/Tc）",
+          "note": "在项目行组件内取设置服务（3.12.2 settings hook：nx→ZC；行组件首行 K/jo/ko→q/Ac/Tc）+ 一次性迁移调用（localStorage 旧数据 → settings.update → host 落 zcode-expand.json，成功后清 key；settings 未加载完时下次渲染再试）",
           "find": "let{intl:C}=q(),w=Ac(t=>Tc(t,e.workspacePath,e.workspaceIdentity)),",
-          "replace": "let{intl:C}=q(),zcXp=ZC(),w=Ac(t=>Tc(t,e.workspacePath,e.workspaceIdentity)),",
+          "replace": "let{intl:C}=q(),zcXp=ZC(),zcXpMig=window.__ZC_EXPAND__?window.__ZC_EXPAND__.migrate(zcXp):0,w=Ac(t=>Tc(t,e.workspacePath,e.workspaceIdentity)),",
           "expect": 1,
-          "marker": "zcXp=ZC(),w=Ac("
+          "marker": "zcXpMig=window.__ZC_EXPAND__"
         },
         {
           "note": "计算带备注的显示名（放在 zcXpLabel，不动原 ne，避免影响其它用途；i$→F$、_wt→EDt）",
@@ -114,11 +119,11 @@
           "marker": "children:zcXpLabel})"
         },
         {
-          "note": "「更多」菜单在同步项之后插入「编辑备注」（菜单组件 Z$→O1，参数 se/de/pe/he→oe/ue/fe/me，菜单项 rt→Io）。v2：备注真身改存 localStorage（模块 set() 返回全量 map），settings 副本仅作刷新触发器；回显优先读模块 remarks()",
+          "note": "「更多」菜单在同步项之后插入「编辑备注」（菜单组件 Z$→O1，参数 se/de/pe/he→oe/ue/fe/me，菜单项 rt→Io）。v3：数据回归官方链路（map 基于 zcXp.settings.projectRemarks，读点已并入 store 真身；localStorage 迁移由 edit1 的 migrate 负责）",
           "find": "(0,$.jsx)(O1,{canSyncSkills:oe,canSyncMcp:oe,canSyncPlugins:oe,stopMouseDownPropagation:!0,onOpenSkillSync:()=>ue(!0),onOpenMcpSync:()=>fe(!0),onOpenPluginSync:()=>me(!0)}),",
-          "replace": "(0,$.jsx)(O1,{canSyncSkills:oe,canSyncMcp:oe,canSyncPlugins:oe,stopMouseDownPropagation:!0,onOpenSkillSync:()=>ue(!0),onOpenMcpSync:()=>fe(!0),onOpenPluginSync:()=>me(!0)}),(0,$.jsxs)(Io,{onMouseDown:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation()},onSelect:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation(),window.__ZC_EXPAND__&&window.__ZC_EXPAND__.edit({name:e.workspacePath,current:(window.__ZC_EXPAND__?window.__ZC_EXPAND__.remarks():(zcXp.settings&&zcXp.settings.projectRemarks||{}))[e.workspacePath]||``,onSave:zcXpNext=>{zcXp.update({projectRemarks:window.__ZC_EXPAND__?window.__ZC_EXPAND__.set(e.workspacePath,zcXpNext):{}})}})},children:[`编辑备注`]}),",
+          "replace": "(0,$.jsx)(O1,{canSyncSkills:oe,canSyncMcp:oe,canSyncPlugins:oe,stopMouseDownPropagation:!0,onOpenSkillSync:()=>ue(!0),onOpenMcpSync:()=>fe(!0),onOpenPluginSync:()=>me(!0)}),(0,$.jsxs)(Io,{onMouseDown:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation()},onSelect:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation(),window.__ZC_EXPAND__&&window.__ZC_EXPAND__.edit({name:e.workspacePath,current:zcXp.settings&&zcXp.settings.projectRemarks&&zcXp.settings.projectRemarks[e.workspacePath]||``,onSave:zcXpNext=>{let zcXpMap=Object.assign({},zcXp.settings&&zcXp.settings.projectRemarks||{});if(zcXpNext)zcXpMap[e.workspacePath]=zcXpNext;else delete zcXpMap[e.workspacePath];zcXp.update({projectRemarks:zcXpMap})}})},children:[`编辑备注`]}),",
           "expect": 1,
-          "marker": "__ZC_EXPAND__.set(e.workspacePath"
+          "marker": "__ZC_EXPAND__.edit("
         },
         {
           "note": "计算项目运行状态：与官方任务行 spinner 同源判定，输入 taskItems（prop s），经外置模块 isTaskListBusy；v2 增加 zcXpDone（完成待查看，自判定 unreadAt，脱离官方 taskListHasUnread 的清除时机）（3.12.2 prop s 仍是 taskItems）",
@@ -175,6 +180,33 @@
           "replace": "(0,$.jsx)(`span`,{className:`min-w-0 flex-1 truncate text-ui-base font-medium`,children:zcXpTtl??h.formatMessage({id:`webRemoteControl.mobileShell.chatTitle`})})",
           "expect": 1,
           "marker": "children:zcXpTtl??h.formatMessage({id:`webRemoteControl.mobileShell.chatTitle`})}"
+        }
+      ]
+    },
+    {
+      "file": "out/host/index.js",
+      "description": "host 进程 settings 服务读写挂钩：备注真身拆合 ~/.zcode/v2/zcode-expand.json（merge 读点合并 / extract 写点拆出并从 setting.json 剔除，升级免疫）",
+      "edits": [
+        {
+          "note": "文件头注入 store 模块副作用 import（挂 globalThis.__ZC_XP_STORE__）",
+          "find": "import{A as WM,B as Du,C as Zt,a as fee,b as Rs,c as zM,d as $g,e as $t,f as NM,g as UM,h as LM,i as FM,j as BM,k as gee,l as VS,m as Mu,n as JS,o as hee,p as jM,q as Ou,r as zl,s as vee,t as Mg,v as yee,w as Cee,x as xee,y as Ree,z as Tee}from\"./chunk-RUQR3NSG.js\";",
+          "replace": "import\"./zcode-expand/zc-store.mjs\";import{A as WM,B as Du,C as Zt,a as fee,b as Rs,c as zM,d as $g,e as $t,f as NM,g as UM,h as LM,i as FM,j as BM,k as gee,l as VS,m as Mu,n as JS,o as hee,p as jM,q as Ou,r as zl,s as vee,t as Mg,v as yee,w as Cee,x as xee,y as Ree,z as Tee}from\"./chunk-RUQR3NSG.js\";",
+          "expect": 1,
+          "marker": "import\"./zcode-expand/zc-store.mjs\";"
+        },
+        {
+          "note": "读点（readSettings Oce）：返回前合并 store 的 projectRemarks；模块缺失时 ?.+?? 保证与官方行为一致",
+          "find": "async function Oce(){return(await t4()).settings}",
+          "replace": "async function Oce(){let e=await t4(),s=e.settings;return globalThis.__ZC_XP_STORE__?globalThis.__ZC_XP_STORE__.merge(s):s}",
+          "expect": 1,
+          "marker": "__ZC_XP_STORE__?globalThis.__ZC_XP_STORE__.merge(s):s"
+        },
+        {
+          "note": "写点（writeSettings e4 合并行）：patch 带 projectRemarks 时拆出落 store、从落盘内容剔除（官方 setting.json 纯净；3.12.2 丢备注机制即此行合并基础 EC(c) 不含该键导致覆盖冲掉）",
+          "find": "let c=await Qv(s),d={...EC(c),...e};",
+          "replace": "let c=await Qv(s),d=globalThis.__ZC_XP_STORE__?await globalThis.__ZC_XP_STORE__.extract(e,{...EC(c),...e}):{...EC(c),...e};",
+          "expect": 1,
+          "marker": "__ZC_XP_STORE__?await globalThis.__ZC_XP_STORE__.extract(e,"
         }
       ]
     },
