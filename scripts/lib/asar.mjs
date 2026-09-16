@@ -1,12 +1,14 @@
 // asar 读写实现（纯 Node，零依赖）
 //
-// 文件布局（本机 ZCode 3.11.2 实测）：
+// 文件布局（本机 ZCode 3.11.2 / 3.12.2 实测）：
 //   [0:4]   uint32 = 4                     外层 pickle 的 payload 长度
-//   [4:8]   uint32 = 8 + jsonSize          pickle1 长度
-//   [8:12]  uint32 = 4 + jsonSize          pickle2 长度
+//   [4:8]   uint32 = 8 + jsonSize + pad    pickle1（第二个 pickle 总长）
+//   [8:12]  uint32 = 4 + jsonSize + pad    pickle2（第二个 pickle 的 payload 长度）
 //   [12:16] uint32 = jsonSize              索引 JSON 字节数
-//   [16:]   utf8 JSON 索引（压缩无空白）
+//   [16:]   utf8 JSON 索引（压缩无空白）+ pad 字节零填充
 //   之后为数据区，条目 offset 相对数据区起点
+//   pad = (-jsonSize) mod 4：Chromium pickle 要求 payload 4 字节对齐。
+//   3.11.2 的 jsonSize 恰为 4 的倍数（pad=0），3.12.2 为 7012990（pad=2）。
 //
 // 条目字段：普通文件 {size, offset, integrity}；unpacked 文件 {size, unpacked, integrity}
 // integrity：{algorithm:'SHA256', hash: 全文 SHA256, blockSize: 4194304, blocks:[每块 SHA256]}
@@ -65,7 +67,11 @@ export function openAsar(file) {
     closeSync(fd);
     throw new Error(`asar 头部异常：首字段应为 4，实际 ${outer}`);
   }
-  if (pickle1 !== 8 + jsonSize || pickle2 !== 4 + jsonSize) {
+  // 官方 asar 是标准 Chromium pickle（JSON 后补零到 4 字节对齐）；旧版 headerBuffer 产物无填充，两种都要能读
+  const pad = (4 - (jsonSize % 4)) % 4;
+  const padded = pickle1 === 8 + jsonSize + pad && pickle2 === 4 + jsonSize + pad;
+  const legacy = pickle1 === 8 + jsonSize && pickle2 === 4 + jsonSize;
+  if (!padded && !legacy) {
     closeSync(fd);
     throw new Error(`asar 头部长度字段不自洽：${pickle1} / ${pickle2} / ${jsonSize}`);
   }
@@ -89,7 +95,8 @@ export function openAsar(file) {
     closeSync(fd);
     throw new Error('asar 索引缺少 files 根节点');
   }
-  return { file, fd, size, jsonSize, dataStart: 16 + jsonSize, header };
+  // 数据区紧跟第二个 pickle 结束：8 + pickle1 = 16 + jsonSize + pad
+  return { file, fd, size, jsonSize, dataStart: 8 + pickle1, header };
 }
 
 export function closeAsar(a) {
@@ -199,12 +206,15 @@ export function computeLayout(a, ops = {}) {
   return { header, layout, dataSize: cursor, changed: new Set([...replace.keys(), ...add.keys()]) };
 }
 function headerBuffer(header) {
-  const jsonBuf = Buffer.from(JSON.stringify(header), 'utf8');
+  const raw = Buffer.from(JSON.stringify(header), 'utf8');
+  // JSON 长度非 4 倍数时补零对齐（与 openAsar 的读取校验同一规则）
+  const pad = (4 - (raw.length % 4)) % 4;
+  const jsonBuf = pad ? Buffer.concat([raw, Buffer.alloc(pad)]) : raw;
   const head = Buffer.alloc(16);
   head.writeUInt32LE(4, 0);
   head.writeUInt32LE(8 + jsonBuf.length, 4);
   head.writeUInt32LE(4 + jsonBuf.length, 8);
-  head.writeUInt32LE(jsonBuf.length, 12);
+  head.writeUInt32LE(raw.length, 12);
   return { head, jsonBuf, dataStart: 16 + jsonBuf.length };
 }
 
