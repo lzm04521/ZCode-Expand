@@ -440,6 +440,14 @@
       }
     }
 
+    function focusInput() {
+      if (finished || !overlay.parentNode) return;
+      if (document.activeElement !== input) {
+        input.focus();
+        input.select();
+      }
+    }
+
     // 拦截弹窗内指针事件的冒泡（含 pointerdown 等现代事件类型），
     // 防止应用挂在 document/window 上的全局监听器响应弹窗内的点击。
     ['pointerdown', 'mousedown', 'mouseup', 'click', 'contextmenu', 'wheel'].forEach(function (type) {
@@ -466,8 +474,12 @@
     document.addEventListener('keydown', onKeyDown, true);
 
     openDialog = { close: close };
-    input.focus();
-    input.select();
+    // Radix 菜单收起时会把焦点异步归还给触发按钮，时序晚于本函数里的
+    // input.focus()，会把输入框焦点抢走。三段式抢回：立即 focus，再在
+    // 60/180ms 各校验一次，焦点不在输入框上就抢回来（对话框已关闭则放弃）。
+    focusInput();
+    setTimeout(focusInput, 60);
+    setTimeout(focusInput, 180);
   }
 
   function diag() {
