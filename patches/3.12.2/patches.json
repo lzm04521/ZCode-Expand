@@ -207,6 +207,13 @@
           "replace": "let c=await Qv(s),d=globalThis.__ZC_XP_STORE__?await globalThis.__ZC_XP_STORE__.extract(e,{...EC(c),...e}):{...EC(c),...e};",
           "expect": 1,
           "marker": "__ZC_XP_STORE__?await globalThis.__ZC_XP_STORE__.extract(e,"
+        },
+        {
+          "note": "settingService.get 常规路径（v2 修复：get 平时直调 t4 返回 l.settings，不走 Oce——merge 挂 Oce 读路径没接上，症状为 JSON 有数据但显示不生效；needsMigrationPersist 分支经 Oce 已有 merge）",
+          "find": "async get(){await e;let l=await t4();return l.needsMigrationPersist?(await n(async(d,u)=>{let p=await t4();p.needsMigrationPersist&&await e4(p.settings,d,o,u)}),Oce()):l.settings}",
+          "replace": "async get(){await e;let l=await t4();return l.needsMigrationPersist?(await n(async(d,u)=>{let p=await t4();p.needsMigrationPersist&&await e4(p.settings,d,o,u)}),Oce()):globalThis.__ZC_XP_STORE__?await globalThis.__ZC_XP_STORE__.merge(l.settings):l.settings}",
+          "expect": 1,
+          "marker": "merge(l.settings):l.settings"
         }
       ]
     },
