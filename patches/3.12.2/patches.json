@@ -135,11 +135,11 @@
           "marker": "zc-xp-running`}):!n&&u?"
         },
         {
-          "note": "Root 体内取 settings（复用 ZC() hook；3.11.2 锚在组件声明首行 hasCompletedFullTabRestore 已位移，改为插在 syncWindowTabs effect 之后的顶层逗号序列，hooks 顺序稳定）",
-          "find": "s.syncWindowTabs(e)},[T,h,s,_]),",
-          "replace": "s.syncWindowTabs(e)},[T,h,s,_]),zcXpSet=ZC(),zcXpRemarks=zcXpSet.settings&&zcXpSet.settings.projectRemarks,",
+          "note": "Root 体内取 projectRemarks：官方已在 let 声明链解构 {settings:M,refresh:N,update:P}=ZC()，直接在其后派生 zcXpRemarks（v1 修复：原插在 effect 逗号表达式序列里的裸赋值 zcXpSet= 在 ES module 严格模式下抛 ReferenceError，必须挂进声明链；且复用官方解构免一次 hook 调用）",
+          "find": "{settings:M,refresh:N,update:P}=ZC(),",
+          "replace": "{settings:M,refresh:N,update:P}=ZC(),zcXpRemarks=M&&M.projectRemarks,",
           "expect": 1,
-          "marker": "zcXpSet=ZC(),zcXpRemarks"
+          "marker": "zcXpRemarks=M&&M.projectRemarks"
         },
         {
           "note": "web-remote-control 同步（remote 子集，uJt 结果）：label 替换为备注（remoteLabel：有备注给备注、无备注回退原名，不拼接；$qt→uJt，条件 S/C→C/w）",
