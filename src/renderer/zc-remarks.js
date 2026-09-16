@@ -444,7 +444,9 @@
       if (finished || !overlay.parentNode) return;
       if (document.activeElement !== input) {
         input.focus();
-        input.select();
+        // 光标放到文本末尾，不做全选（select() 全选容易导致一次输入覆盖全部旧内容）
+        var len = input.value.length;
+        input.setSelectionRange(len, len);
       }
     }
 
