@@ -119,9 +119,9 @@
           "marker": "children:zcXpLabel})"
         },
         {
-          "note": "「更多」菜单在同步项之后插入「编辑备注」（菜单组件 Z$→O1，参数 se/de/pe/he→oe/ue/fe/me，菜单项 rt→Io）。v3：数据回归官方链路（map 基于 zcXp.settings.projectRemarks，读点已并入 store 真身；localStorage 迁移由 edit1 的 migrate 负责）",
+          "note": "「更多」菜单在同步项之后插入「编辑备注」（菜单组件 Z$→O1，参数 se/de/pe/he→oe/ue/fe/me，菜单项 rt→Io）。v3：数据回归官方链路（map 基于 zcXp.settings.projectRemarks，读点已并入 store 真身；localStorage 迁移由 edit1 的 migrate 负责）。v4：onSelect 去掉 preventDefault（Radix 惯例它正是阻止菜单自动收起的开关），edit 包进 setTimeout(0) 等菜单关闭完成后再弹窗，input.focus() 得以稳定落焦",
           "find": "(0,$.jsx)(O1,{canSyncSkills:oe,canSyncMcp:oe,canSyncPlugins:oe,stopMouseDownPropagation:!0,onOpenSkillSync:()=>ue(!0),onOpenMcpSync:()=>fe(!0),onOpenPluginSync:()=>me(!0)}),",
-          "replace": "(0,$.jsx)(O1,{canSyncSkills:oe,canSyncMcp:oe,canSyncPlugins:oe,stopMouseDownPropagation:!0,onOpenSkillSync:()=>ue(!0),onOpenMcpSync:()=>fe(!0),onOpenPluginSync:()=>me(!0)}),(0,$.jsxs)(Io,{onMouseDown:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation()},onSelect:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation(),window.__ZC_EXPAND__&&window.__ZC_EXPAND__.edit({name:e.workspacePath,current:zcXp.settings&&zcXp.settings.projectRemarks&&zcXp.settings.projectRemarks[e.workspacePath]||``,onSave:zcXpNext=>{let zcXpMap=Object.assign({},zcXp.settings&&zcXp.settings.projectRemarks||{});if(zcXpNext)zcXpMap[e.workspacePath]=zcXpNext;else delete zcXpMap[e.workspacePath];zcXp.update({projectRemarks:zcXpMap})}})},children:[`编辑备注`]}),",
+          "replace": "(0,$.jsx)(O1,{canSyncSkills:oe,canSyncMcp:oe,canSyncPlugins:oe,stopMouseDownPropagation:!0,onOpenSkillSync:()=>ue(!0),onOpenMcpSync:()=>fe(!0),onOpenPluginSync:()=>me(!0)}),(0,$.jsxs)(Io,{onMouseDown:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation()},onSelect:zcXpEv=>{zcXpEv.stopPropagation(),window.__ZC_EXPAND__&&setTimeout(()=>window.__ZC_EXPAND__.edit({name:e.workspacePath,current:zcXp.settings&&zcXp.settings.projectRemarks&&zcXp.settings.projectRemarks[e.workspacePath]||``,onSave:zcXpNext=>{let zcXpMap=Object.assign({},zcXp.settings&&zcXp.settings.projectRemarks||{});if(zcXpNext)zcXpMap[e.workspacePath]=zcXpNext;else delete zcXpMap[e.workspacePath];zcXp.update({projectRemarks:zcXpMap})}}),0)},children:[`编辑备注`]}),",
           "expect": 1,
           "marker": "__ZC_EXPAND__.edit("
         },
