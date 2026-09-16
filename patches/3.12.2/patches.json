@@ -135,11 +135,11 @@
           "marker": "zc-xp-running`}):!n&&u?"
         },
         {
-          "note": "Root 体内取 projectRemarks：官方已在 let 声明链解构 {settings:M,refresh:N,update:P}=ZC()，直接在其后派生 zcXpRemarks（v1 修复：原插在 effect 逗号表达式序列里的裸赋值 zcXpSet= 在 ES module 严格模式下抛 ReferenceError，必须挂进声明链；且复用官方解构免一次 hook 调用）",
-          "find": "{settings:M,refresh:N,update:P}=ZC(),",
-          "replace": "{settings:M,refresh:N,update:P}=ZC(),zcXpRemarks=M&&M.projectRemarks,",
+          "note": "宿主组件内取 projectRemarks：web-remote 同步 effect（uJt/lJt 两处）所在的外层壳组件已解构 {settings:We,update:Ge}=ZC()，在其后派生 zcXpRemarks（v2 修复：v1 插在 effect 逗号表达式序列抛 ReferenceError；v2 误挂到内层 fYt 的同名解构——声明与使用分属两个组件，自由变量仍 ReferenceError。正确宿主以 to(t.workspacePath) 消费 workspaceTabs label 的组件为准）",
+          "find": "{settings:We,update:Ge}=ZC(),",
+          "replace": "{settings:We,update:Ge}=ZC(),zcXpRemarks=We&&We.projectRemarks,",
           "expect": 1,
-          "marker": "zcXpRemarks=M&&M.projectRemarks"
+          "marker": "zcXpRemarks=We&&We.projectRemarks"
         },
         {
           "note": "web-remote-control 同步（remote 子集，uJt 结果）：label 替换为备注（remoteLabel：有备注给备注、无备注回退原名，不拼接；$qt→uJt，条件 S/C→C/w）",
