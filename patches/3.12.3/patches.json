@@ -1,0 +1,323 @@
+{
+  "appVersion": "3.12.3",
+  "patchFormat": 1,
+  "summary": "BigModel 账号管理 + 快速切换：host 侧在 persistOAuthSession 落库成功后把 BigModel 登录快照（tokenSet + user_info）存进 ~/.zcode/v2/zcode-expand.json 的 accounts（明文，同 id 幂等覆盖），模型设置页 BigModel 卡片「解绑」旁出现「切换账号」按钮（zc-accounts.js 原生 DOM 弹窗，头像/显示名/快照时间/当前账号标记，行内删除带确认）；点选账号 → settings 写入 zcAccountSwitch（pending，带 issuedAt）→ host 写点接住请求（时间窗 + 单调去重防回流重复触发），串行队列执行：官方 logout(切换前 active) 顶掉旧会话 → repo.saveTokenSet/saveUserProfile/setActiveProvider 复用官方加密写入 → cancelPending，失败按备份回滚凭据；结果回写 store 后渲染层轮询读到 done/failed，再走官方解绑同款收尾（清 Coding Plan webview 登录态 → setUser 重建用户态 → 从 Z.ai 切来才同步 providerFamilyDomain → Le({}) 刷新 provider 列表与套餐快照），无需重启。启动时把残留 pending 自愈为 failed。账号列表只经 host 读点 merge 流向渲染层，schema 不放行 accounts（明文令牌不能进 setting.json、设置日志或 settings 同步通道），删除走 zcAccountDelete 只删 store 条目、不动官方凭据。项目列表备注 + 任务状态点：设置 schema 增加 projectRemarks 字段，项目行显示备注，行内「更多」菜单增加编辑入口；项目下有任务正在执行（与官方任务行 spinner 同源判定：__zcodeSessionActivity.phase ∈ prewarming/running）时项目行显示蓝色脉冲点（复用官方 sky 类），未在执行但有未读（多为任务完成待查看）时显示绿色静态点（复用官方 bg-success，沿官方 !n&&u 条件）；web-remote-control 同步给 main 的项目 label 同样替换为备注（手机屏幕小，有备注只显示备注、无备注回退文件夹名，不拼接），且推送签名纳入 label，手机网页项目列表显示备注名并在改备注后即时刷新；手机会话页（新建会话/历史会话详细）顶部标题显示当前工作区备注，无备注降级文件夹名，再降级原文。Directory Opus 适配：主进程注入 zc-dopus 模块，Windows 检测到 Opus（dopusrt/dopus）时，打开文件夹/资源管理器各入口（openInFileManager IPC、openInEditor explorer 的目录与文件分支）改由 dopusrt /acmd Go <path> NEWTAB=tofront 打开，文件传完整路径实现定位目录并选中（本机实测 2026-09-11），未装 Opus 行为不变。3.12.2 适配要点：渲染层 schema 压缩别名 E(x())→D(S())、record A(x(),x())→j(S(),S())；settings hook nx→ZC；显示名 i$→F$、SSH 信息 _wt→EDt；菜单组件 Z$→O1、菜单项 rt→Io；web-remote 同步 $qt/Qqt→uJt/lJt；文件夹名降级 Ge→to；主进程 m4→EC、b4 darwin 短路 I_e→NN/k4→xl、签名 se/J→H/O、import SN→om。账号功能锚点：ModelProviderSection=rVt、卡片组件=gzt（providerId/oauthProviderId/onDisconnect 全在）、按钮行=zRt、桌面命令枚举 ci.ClearCodingPlanWebviewStorage、provider→familyDomain 映射 et；host 侧 Fn=Ky(l,{onProviderLogout:S}) 交出 agent 运行时那台 OAuthService、RPC 注册表 register(Vg,Ky(r,{...})) 交出渲染层在用的那台（切换优先用后者：代际失效与登出通知只对该实例有意义），persistOAuthSession 尾部落快照。设置 schema 增加 projectRemarks 字段，项目行显示备注，行内「更多」菜单增加编辑入口；项目下有任务正在执行（与官方任务行 spinner 同源判定：__zcodeSessionActivity.phase ∈ prewarming/running）时项目行显示蓝色脉冲点（复用官方 sky 类），未在执行但有未读（多为任务完成待查看）时显示绿色静态点（复用官方 bg-success，沿官方 !n&&u 条件）；web-remote-control 同步给 main 的项目 label 同样替换为备注（手机屏幕小，有备注只显示备注、无备注回退文件夹名，不拼接），且推送签名纳入 label，手机网页项目列表显示备注名并在改备注后即时刷新；手机会话页（新建会话/历史会话详细）顶部标题显示当前工作区备注，无备注降级文件夹名，再降级原文。Directory Opus 适配：主进程注入 zc-dopus 模块，Windows 检测到 Opus（dopusrt/dopus）时，打开文件夹/资源管理器各入口（openInFileManager IPC、openInEditor explorer 的目录与文件分支）改由 dopusrt /acmd Go <path> NEWTAB=tofront 打开，文件传完整路径实现定位目录并选中（本机实测 2026-09-11），未装 Opus 行为不变。3.12.2 适配要点：渲染层 schema 压缩别名 E(x())→D(S())、record A(x(),x())→j(S(),S())；settings hook nx→ZC；显示名 i$→F$、SSH 信息 _wt→EDt；菜单组件 Z$→O1、菜单项 rt→Io；web-remote 同步 $qt/Qqt→uJt/lJt；文件夹名降级 Ge→to；主进程 m4→EC、b4 darwin 短路 I_e→NN/k4→xl、签名 se/J→H/O、import SN→om。3.12.3 适配要点（2026-09-17）：chunk 名重定位 styles-pARxt8cp→styles-ou2or4Yg、src-CxI7yjGQ→src-CxH9JPKC、主进程 schema chunk-RODBL7YI→chunk-6XM33EZR、host schema chunk-X6WQJNOD→chunk-ZH56ETHO、host import chunk-RUQR3NSG→chunk-OIOBEZTZ、入口 index-ClFnIY8F→index-Bz4oM8b0，main import 的 chunk-KHSEGNJU 同名保留；压缩别名仅主进程 4 处位移（om→im、Tl→Al、NN→HN、xl→Dl），schema 三件套（e/t/D(S())）与渲染层 styles 17 处锚点字面量零位移原样沿用。",
+  "addFiles": [
+    {
+      "from": "src/renderer/zc-remarks.js",
+      "to": "out/renderer/zcode-expand/zc-remarks.js",
+      "description": "备注功能模块（注入到渲染层，暴露 window.__ZC_EXPAND__）"
+    },
+    {
+      "from": "src/renderer/zc-accounts.js",
+      "to": "out/renderer/zcode-expand/zc-accounts.js",
+      "description": "BigModel 账号管理/快速切换模块（注入到渲染层，暴露 window.__ZC_ACCOUNTS__）"
+    },
+    {
+      "from": "src/main/zc-dopus.mjs",
+      "to": "out/main/zcode-expand/zc-dopus.mjs",
+      "description": "Directory Opus 接管模块（注入主进程，暴露 globalThis.__ZC_EXPAND_DOPUS__）"
+    },
+    {
+      "from": "src/main/zc-store.mjs",
+      "to": "out/host/zcode-expand/zc-store.mjs",
+      "description": "备注独立存储模块（注入 host 进程，暴露 globalThis.__ZC_XP_STORE__，真身 ~/.zcode/v2/zcode-expand.json）"
+    }
+  ],
+  "targets": [
+    {
+      "file": "out/renderer/index.html",
+      "description": "在应用入口脚本之前注入备注模块，保证 window.__ZC_EXPAND__ 先就绪",
+      "edits": [
+        {
+          "note": "注入脚本标签（3.12.3 入口 chunk：index-ClFnIY8F → index-Bz4oM8b0）。v2：追加 BigModel 账号模块 zc-accounts.js，与备注模块同样先于入口脚本加载，保证 window.__ZC_ACCOUNTS__ 就绪",
+          "find": "<script type=\"module\" crossorigin src=\"./assets/index-Bz4oM8b0.js\"></script>",
+          "replace": "<script src=\"./zcode-expand/zc-remarks.js\"></script>\n    <script src=\"./zcode-expand/zc-accounts.js\"></script>\n    <script type=\"module\" crossorigin src=\"./assets/index-Bz4oM8b0.js\"></script>",
+          "expect": 1,
+          "marker": "zcode-expand/zc-accounts.js"
+        }
+      ]
+    },
+    {
+      "file": "out/main/chunk-6XM33EZR.js",
+      "description": "主进程设置 schema（全量 + 局部 patch）：放行 projectRemarks、zcAccountSwitch、zcAccountDelete（3.11.2 chunk-WR3FEWGO → 3.12.2 chunk-RODBL7YI → 3.12.3 chunk-6XM33EZR，zod 别名 e 未变）。账号切换/删除请求必须过这两道 zod（hM 局部 → Pg 全量）才能到写点，否则会被当未知键剥掉；accounts 则刻意不放行（明文令牌不能进 setting.json 与设置日志）",
+      "edits": [
+        {
+          "note": "全量 schema",
+          "find": "recentProjects:e.array(e.string()).default([]),locale:",
+          "replace": "recentProjects:e.array(e.string()).default([]),projectRemarks:e.record(e.string(),e.string()).optional(),zcAccountSwitch:e.object({}).passthrough().optional(),zcAccountDelete:e.object({}).passthrough().optional(),locale:",
+          "expect": 1,
+          "marker": "recentProjects:e.array(e.string()).default([]),projectRemarks:e.record(e.string(),e.string()).optional(),zcAccountSwitch:e.object({}).passthrough().optional(),zcAccountDelete:"
+        },
+        {
+          "note": "局部 patch schema",
+          "find": "recentProjects:e.array(e.string()).optional(),locale:",
+          "replace": "recentProjects:e.array(e.string()).optional(),projectRemarks:e.record(e.string(),e.string()).optional(),zcAccountSwitch:e.object({}).passthrough().optional(),zcAccountDelete:e.object({}).passthrough().optional(),locale:",
+          "expect": 1,
+          "marker": "recentProjects:e.array(e.string()).optional(),projectRemarks:e.record(e.string(),e.string()).optional(),zcAccountSwitch:e.object({}).passthrough().optional(),zcAccountDelete:"
+        }
+      ]
+    },
+    {
+      "file": "out/host/chunk-ZH56ETHO.js",
+      "description": "host 进程设置 schema（全量 + 局部 patch）：放行 projectRemarks、zcAccountSwitch、zcAccountDelete（3.11.2 chunk-RWMCBKS2 → 3.12.2 chunk-X6WQJNOD → 3.12.3 chunk-ZH56ETHO，zod 别名 t 未变）。host 的 settingService.update 先用局部 schema 解 patch、再用全量 schema 解合并结果，两道都要放行",
+      "edits": [
+        {
+          "note": "全量 schema",
+          "find": "recentProjects:t.array(t.string()).default([]),locale:",
+          "replace": "recentProjects:t.array(t.string()).default([]),projectRemarks:t.record(t.string(),t.string()).optional(),zcAccountSwitch:t.object({}).passthrough().optional(),zcAccountDelete:t.object({}).passthrough().optional(),locale:",
+          "expect": 1,
+          "marker": "recentProjects:t.array(t.string()).default([]),projectRemarks:t.record(t.string(),t.string()).optional(),zcAccountSwitch:t.object({}).passthrough().optional(),zcAccountDelete:"
+        },
+        {
+          "note": "局部 patch schema",
+          "find": "recentProjects:t.array(t.string()).optional(),locale:",
+          "replace": "recentProjects:t.array(t.string()).optional(),projectRemarks:t.record(t.string(),t.string()).optional(),zcAccountSwitch:t.object({}).passthrough().optional(),zcAccountDelete:t.object({}).passthrough().optional(),locale:",
+          "expect": 1,
+          "marker": "recentProjects:t.array(t.string()).optional(),projectRemarks:t.record(t.string(),t.string()).optional(),zcAccountSwitch:t.object({}).passthrough().optional(),zcAccountDelete:"
+        }
+      ]
+    },
+    {
+      "file": "out/renderer/assets/src-CxH9JPKC.js",
+      "description": "渲染层设置 schema 副本（全量 + 局部 patch）：放行 projectRemarks、zcAccountSwitch、zcAccountDelete（3.11.2 src-CdedQslh → 3.12.2 src-CxI7yjGQ → 3.12.3 src-CxH9JPKC；压缩别名 E(x())→D(S())、record A(x(),x())→j(S(),S())（3.12.3 未再位移），j(S(),S()) 为该文件既有惯用法；transient 键用该文件既有的 O({}).passthrough() 宽松放行）",
+      "edits": [
+        {
+          "note": "全量 schema",
+          "find": "recentProjects:D(S()).default([]),locale:",
+          "replace": "recentProjects:D(S()).default([]),projectRemarks:j(S(),S()).optional(),zcAccountSwitch:O({}).passthrough().optional(),zcAccountDelete:O({}).passthrough().optional(),locale:",
+          "expect": 1,
+          "marker": "recentProjects:D(S()).default([]),projectRemarks:j(S(),S()).optional(),zcAccountSwitch:O({}).passthrough().optional(),zcAccountDelete:"
+        },
+        {
+          "note": "局部 patch schema",
+          "find": "recentProjects:D(S()).optional(),locale:",
+          "replace": "recentProjects:D(S()).optional(),projectRemarks:j(S(),S()).optional(),zcAccountSwitch:O({}).passthrough().optional(),zcAccountDelete:O({}).passthrough().optional(),locale:",
+          "expect": 1,
+          "marker": "recentProjects:D(S()).optional(),projectRemarks:j(S(),S()).optional(),zcAccountSwitch:O({}).passthrough().optional(),zcAccountDelete:"
+        }
+      ]
+    },
+    {
+      "file": "out/renderer/assets/styles-ou2or4Yg.js",
+      "description": "项目列表行（WorkspaceSidebarItem 内部 DDt）+ Root + 手机会话壳 + BigModel 账号切换入口：读取设置、按备注生成显示名、编辑入口、运行状态点、web-remote 同步替换 label、手机端标题；ModelProviderSection 注入 bindRefresh 交出收尾回调引用，卡片按钮行（zRt）追加「切换账号」按钮（3.11.2 styles-DyAcaLKy → 3.12.2 styles-pARxt8cp → 3.12.3 styles-ou2or4Yg；3.12.3 压缩别名零位移，17 处锚点原样沿用）",
+      "edits": [
+        {
+          "note": "ModelProviderSection（rVt）体首补一次服务集合读取：Os() 在组件里是常规调用（本文件 46 处同款），多取一次拿到 settingService（轮询切换回执）与各服务（探测 getDesktopSessionActivity）",
+          "find": "{modelSelectionService:l,oauthService:u,credentialService:d}=Os()",
+          "replace": "{modelSelectionService:l,oauthService:u,credentialService:d}=Os(),zcXpSvc=Os()",
+          "expect": 1,
+          "marker": "credentialService:d}=Os(),zcXpSvc=Os()"
+        },
+        {
+          "note": "在项目行组件内取设置服务（3.12.2 settings hook：nx→ZC；行组件首行 K/jo/ko→q/Ac/Tc）+ 一次性迁移调用（localStorage 旧数据 → settings.update → host 落 zcode-expand.json，成功后清 key；settings 未加载完时下次渲染再试）",
+          "find": "let{intl:C}=q(),w=Ac(t=>Tc(t,e.workspacePath,e.workspaceIdentity)),",
+          "replace": "let{intl:C}=q(),zcXp=ZC(),zcXpMig=window.__ZC_EXPAND__?window.__ZC_EXPAND__.migrate(zcXp):0,w=Ac(t=>Tc(t,e.workspacePath,e.workspaceIdentity)),",
+          "expect": 1,
+          "marker": "zcXpMig=window.__ZC_EXPAND__"
+        },
+        {
+          "note": "计算带备注的显示名（放在 zcXpLabel，不动原 ne，避免影响其它用途；i$→F$、_wt→EDt）",
+          "find": "ne=F$(e.label,e.remoteTarget),H=EDt(e),",
+          "replace": "ne=F$(e.label,e.remoteTarget),zcXpLabel=window.__ZC_EXPAND__?window.__ZC_EXPAND__.label(F$(e.label,e.remoteTarget),e.workspacePath,zcXp.settings&&zcXp.settings.projectRemarks):F$(e.label,e.remoteTarget),H=EDt(e),",
+          "expect": 1,
+          "marker": "zcXpLabel=window.__ZC_EXPAND__"
+        },
+        {
+          "note": "显示名渲染点改用 zcXpLabel（re→ne）",
+          "find": "children:ne}),!n&&u?",
+          "replace": "children:zcXpLabel}),!n&&u?",
+          "expect": 1,
+          "marker": "children:zcXpLabel})"
+        },
+        {
+          "note": "「更多」菜单在同步项之后插入「编辑备注」（菜单组件 Z$→O1，参数 se/de/pe/he→oe/ue/fe/me，菜单项 rt→Io）。v3：数据回归官方链路（map 基于 zcXp.settings.projectRemarks，读点已并入 store 真身；localStorage 迁移由 edit1 的 migrate 负责）。v4：onSelect 去掉 preventDefault（Radix 惯例它正是阻止菜单自动收起的开关），edit 包进 setTimeout(0) 等菜单关闭完成后再弹窗，input.focus() 得以稳定落焦",
+          "find": "(0,$.jsx)(O1,{canSyncSkills:oe,canSyncMcp:oe,canSyncPlugins:oe,stopMouseDownPropagation:!0,onOpenSkillSync:()=>ue(!0),onOpenMcpSync:()=>fe(!0),onOpenPluginSync:()=>me(!0)}),",
+          "replace": "(0,$.jsx)(O1,{canSyncSkills:oe,canSyncMcp:oe,canSyncPlugins:oe,stopMouseDownPropagation:!0,onOpenSkillSync:()=>ue(!0),onOpenMcpSync:()=>fe(!0),onOpenPluginSync:()=>me(!0)}),(0,$.jsxs)(Io,{onMouseDown:zcXpEv=>{zcXpEv.preventDefault(),zcXpEv.stopPropagation()},onSelect:zcXpEv=>{zcXpEv.stopPropagation(),window.__ZC_EXPAND__&&setTimeout(()=>window.__ZC_EXPAND__.edit({name:e.workspacePath,current:zcXp.settings&&zcXp.settings.projectRemarks&&zcXp.settings.projectRemarks[e.workspacePath]||``,onSave:zcXpNext=>{let zcXpMap=Object.assign({},zcXp.settings&&zcXp.settings.projectRemarks||{});if(zcXpNext)zcXpMap[e.workspacePath]=zcXpNext;else delete zcXpMap[e.workspacePath];zcXp.update({projectRemarks:zcXpMap})}}),0)},children:[`编辑备注`]}),",
+          "expect": 1,
+          "marker": "__ZC_EXPAND__.edit("
+        },
+        {
+          "note": "计算项目运行状态：与官方任务行 spinner 同源判定，输入 taskItems（prop s），经外置模块 isTaskListBusy；v2 增加 zcXpDone（完成待查看，自判定 unreadAt，脱离官方 taskListHasUnread 的清除时机）（3.12.2 prop s 仍是 taskItems）",
+          "find": "H=EDt(e),re=g[z]??[]",
+          "replace": "H=EDt(e),zcXpBusy=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListBusy(s):!1,zcXpDone=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListDone(s):!1,re=g[z]??[]",
+          "expect": 1,
+          "marker": "isTaskListDone(s)"
+        },
+        {
+          "note": "状态点状态机：任务执行中（宽判定）显示蓝点脉冲（官方 sky 类 + zc-xp-running）；完成待查看改用自判定 zcXpDone 显示绿点静态（官方 bg-success）——3.12.2 官方 taskListHasUnread 点击项目即清导致绿点一触即消，自判定只跟随任务 unreadAt，点开任务查看或下轮开跑才消失（还原 3.11.2 行为）",
+          "find": "!n&&u?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-unread-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500 dark:bg-sky-400`}):null,R?",
+          "replace": "zcXpBusy?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-running-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500 dark:bg-sky-400 zc-xp-running`}):zcXpDone?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-done-indicator\":`true`,className:`h-1.5 w-1.5 shrink-0 rounded-full bg-success zc-xp-done`}):null,R?",
+          "expect": 1,
+          "marker": "zc-xp-running`}):zcXpDone?"
+        },
+        {
+          "note": "hJt（web-remote 同步 effect 宿主组件，即 3.11.2 的 Root）体首取 settings：挂 let O=useRef(!1) 声明链（v3 教训：用 acorn AST 确认声明与使用的函数链——effect 在 hJt@4584288 内，v3 误挂 T9@4455775、v2 误挂内层 fYt。3.11.2 同构锚 hasCompletedFullTabRestore:w=!0,intl:T}){let E=...；3.12.2 别名 w/T→T/E 且 intl 后多 isRestoringOAuthSession:D、let 链用逗号续写）",
+          "find": "hasCompletedFullTabRestore:T=!0,intl:E,isRestoringOAuthSession:D}){let O=(0,Q.useRef)(!1),",
+          "replace": "hasCompletedFullTabRestore:T=!0,intl:E,isRestoringOAuthSession:D}){let O=(0,Q.useRef)(!1),zcXpSet=ZC(),zcXpRemarks=zcXpSet.settings&&zcXpSet.settings.projectRemarks,",
+          "expect": 1,
+          "marker": "zcXpSet=ZC(),zcXpRemarks"
+        },
+        {
+          "note": "web-remote-control 同步（remote 子集，uJt 结果）：label 替换为备注（remoteLabel：有备注给备注、无备注回退原名，不拼接；$qt→uJt，条件 S/C→C/w）",
+          "find": "let e=uJt({tabs:_});if(e.length>0&&s.syncWebRemoteControlWorkspaces(e),!C||!w)return;",
+          "replace": "let e=uJt({tabs:_});if(e.length>0&&s.syncWebRemoteControlWorkspaces(e.map(zcXpW=>({...zcXpW,label:window.__ZC_EXPAND__?window.__ZC_EXPAND__.remoteLabel(zcXpW.label,zcXpW.workspacePath,zcXpRemarks):zcXpW.label}))),!C||!w)return;",
+          "expect": 1,
+          "marker": "remoteLabel(zcXpW.label,zcXpW.workspacePath,zcXpRemarks):zcXpW.label}))),!C"
+        },
+        {
+          "note": "web-remote-control 同步（全量，lJt 结果）替换 label（remoteLabel 不拼接）；effect 依赖加 remarks 引用，改备注即重新同步（deps 数组 3.12.2：[T,h,s,b,x,_,C,w]）",
+          "find": "s.syncWebRemoteControlWorkspaces(t)},[T,h,s,b,x,_,C,w])",
+          "replace": "s.syncWebRemoteControlWorkspaces(t.map(zcXpW=>({...zcXpW,label:window.__ZC_EXPAND__?window.__ZC_EXPAND__.remoteLabel(zcXpW.label,zcXpW.workspacePath,zcXpRemarks):zcXpW.label})))},[T,h,s,b,x,_,C,w,zcXpRemarks])",
+          "expect": 1,
+          "marker": "remoteLabel(zcXpW.label,zcXpW.workspacePath,zcXpRemarks):zcXpW.label})))},[T"
+        },
+        {
+          "note": "手机会话壳声明区注入标题派生 state：listWorkspaces 结果按 workspacePath 匹配取 label（main 推送侧已替换为备注/原名），降级 to(path) 文件夹名（3.11.2 Ge→to，Ygt→kvt；组件 props o=initialWorkspaceList、n=initialNavigationIntent 不变）",
+          "find": "let{intl:h}=q(),[g,_]=(0,Q.useState)(()=>kvt(a)),",
+          "replace": "let{intl:h}=q(),[zcXpW,zcXpSW]=(0,Q.useState)(o?.workspaces??[]),zcXpTtl=(0,Q.useMemo)(()=>n?zcXpW.find(zcW=>zcW.workspacePath===n)?.label||to(n):null,[zcXpW,n]),[g,_]=(0,Q.useState)(()=>kvt(a)),",
+          "expect": 1,
+          "marker": "zcXpTtl=(0,Q.useMemo)(()=>n?zcXpW.find"
+        },
+        {
+          "note": "return 链首追加 effect：mount/回首页（refreshKey b 变化）时经 switcher p.listWorkspaces 拉列表更新标题，失败静默由标题降级链兜底（3.12.2 锚点与 3.11.2 完全一致）",
+          "find": "return(0,Q.useEffect)(()=>{a===`chat`&&D()},[a,D])",
+          "replace": "return(0,Q.useEffect)(()=>{p.listWorkspaces().then(zcR=>zcXpSW(zcR.workspaces??[])).catch(()=>{})},[p,b]),(0,Q.useEffect)(()=>{a===`chat`&&D()},[a,D])",
+          "expect": 1,
+          "marker": "zcXpSW(zcR.workspaces??[])).catch"
+        },
+        {
+          "note": "手机会话页（新建会话/历史会话详细共用 chat 分支）顶部标题：优先备注/文件夹名，取不到回退原文「任务会话」（3.12.2 锚点与 3.11.2 完全一致）",
+          "find": "(0,$.jsx)(`span`,{className:`min-w-0 flex-1 truncate text-ui-base font-medium`,children:h.formatMessage({id:`webRemoteControl.mobileShell.chatTitle`})})",
+          "replace": "(0,$.jsx)(`span`,{className:`min-w-0 flex-1 truncate text-ui-base font-medium`,children:zcXpTtl??h.formatMessage({id:`webRemoteControl.mobileShell.chatTitle`})})",
+          "expect": 1,
+          "marker": "children:zcXpTtl??h.formatMessage({id:`webRemoteControl.mobileShell.chatTitle`})}"
+        },
+        {
+          "note": "ModelProviderSection（rVt）渲染期把收尾回调交给我方模块（每次渲染刷新引用，闭包里的 settings/activeProvider 不过期）。y=refreshModelProviders、Le=refreshAll、Fe=refreshPlanSnapshots、Ie=refreshPurchaseTokenState、_e=setUser、ye=setOAuthError、et=provider→familyDomain、ci=桌面命令枚举",
+          "find": "Je=(0,Q.useCallback)(async(e,t,n)=>{if(!(t!==`bigmodel`&&t!==`zai`)){",
+          "replace": "zcXpAcctBind=window.__ZC_ACCOUNTS__&&window.__ZC_ACCOUNTS__.bindRefresh({services:zcXpSvc,settings:be,update:Ce,credentials:d,setUser:_e,setOAuthError:ye,refreshAll:Le,refreshProviders:y,refreshPlanSnapshots:Fe,refreshPurchaseToken:Ie,familyDomainOf:et,clearCodingPlanWebviewStorage:()=>typeof c.executeDesktopCommand==`function`?c.executeDesktopCommand(ci.ClearCodingPlanWebviewStorage):null}),Je=(0,Q.useCallback)(async(e,t,n)=>{if(!(t!==`bigmodel`&&t!==`zai`)){",
+          "expect": 1,
+          "marker": "zcXpAcctBind=window.__ZC_ACCOUNTS__&&window.__ZC_ACCOUNTS__.bindRefresh({"
+        },
+        {
+          "note": "把「切换账号」按钮挂进 zRt 的 children，渲染在「解绑」同一行（zRt 容器就是 flex gap-2 按钮行）。可见条件与按钮构造都在模块里（只依赖 refs，不额外调 hook，避免给这个组件加订阅）；gzt 的 providerId/oauthProviderId 传进去便于自检日志定位",
+          "find": "canDisconnectProvider:Ae?!1:W,disconnectLoading:a,onLogin:g,onDisconnect:y})]});",
+          "replace": "canDisconnectProvider:Ae?!1:W,disconnectLoading:a,onLogin:g,onDisconnect:y,zcXpSwitch:window.__ZC_ACCOUNTS__?window.__ZC_ACCOUNTS__.switchButton({jsx:$.jsx,Button:X,presetId:e,oauthProviderId:ce}):null})]});",
+          "expect": 1,
+          "marker": "zcXpSwitch:window.__ZC_ACCOUNTS__?window.__ZC_ACCOUNTS__.switchButton({jsx:$.jsx,Button:X,presetId:e,oauthProviderId:ce})"
+        },
+        {
+          "note": "zRt（卡片按钮行）声明区收下 zcXpSwitch",
+          "find": "function zRt({providerName:e,isDisconnected:t,isUnavailable:n,isPurchased:r,loginLoading:i,loginButtonId:a,loginVisible:o,canDisconnectProvider:s,disconnectLoading:c,onLogin:l,onDisconnect:u}){let{intl:d}=q();return(0,$.jsxs)(`div`,{className:`flex shrink-0 flex-wrap justify-start gap-2`,children:[",
+          "replace": "function zRt({providerName:e,isDisconnected:t,isUnavailable:n,isPurchased:r,loginLoading:i,loginButtonId:a,loginVisible:o,canDisconnectProvider:s,disconnectLoading:c,onLogin:l,onDisconnect:u,zcXpSwitch:m}){let{intl:d}=q();return(0,$.jsxs)(`div`,{className:`flex shrink-0 flex-wrap justify-start gap-2`,children:[",
+          "expect": 1,
+          "marker": "onDisconnect:u,zcXpSwitch:m}){let{intl:d}=q()"
+        },
+        {
+          "note": "zRt children 末尾挂上「切换账号」按钮（未传入时为 null，其它调用点不受影响）",
+          "find": "d.formatMessage({id:`settings.modelProvider.codingPlan.disconnect`})]}):null]})}",
+          "replace": "d.formatMessage({id:`settings.modelProvider.codingPlan.disconnect`})]}):null,m??null]})}",
+          "expect": 1,
+          "marker": "})]}):null,m??null]})}"
+        }
+      ]
+    },
+    {
+      "file": "out/host/index.js",
+      "description": "host 进程 settings 服务读写挂钩：备注/账号真身拆合 ~/.zcode/v2/zcode-expand.json（merge 读点合并 / extract 写点拆出并从 setting.json 剔除，升级免疫）；另交出 OAuth 服务句柄（__ZC_XP_OAUTH__）与登录落库后的账号快照钩子",
+      "edits": [
+        {
+          "note": "文件头注入 store 模块副作用 import（挂 globalThis.__ZC_XP_STORE__；3.12.3 import 行 chunk-RUQR3NSG → chunk-OIOBEZTZ，前缀别名 WM~Tee 未变）",
+          "find": "import{A as WM,B as Du,C as Zt,a as fee,b as Rs,c as zM,d as $g,e as $t,f as NM,g as UM,h as LM,i as FM,j as BM,k as gee,l as VS,m as Mu,n as JS,o as hee,p as jM,q as Ou,r as zl,s as vee,t as Mg,v as yee,w as Cee,x as xee,y as Ree,z as Tee}from\"./chunk-OIOBEZTZ.js\";",
+          "replace": "import\"./zcode-expand/zc-store.mjs\";import{A as WM,B as Du,C as Zt,a as fee,b as Rs,c as zM,d as $g,e as $t,f as NM,g as UM,h as LM,i as FM,j as BM,k as gee,l as VS,m as Mu,n as JS,o as hee,p as jM,q as Ou,r as zl,s as vee,t as Mg,v as yee,w as Cee,x as xee,y as Ree,z as Tee}from\"./chunk-OIOBEZTZ.js\";",
+          "expect": 1,
+          "marker": "import\"./zcode-expand/zc-store.mjs\";"
+        },
+        {
+          "note": "读点（readSettings Oce）：返回前合并 store 的 projectRemarks；模块缺失时 ?.+?? 保证与官方行为一致",
+          "find": "async function Oce(){return(await t4()).settings}",
+          "replace": "async function Oce(){let e=await t4(),s=e.settings;return globalThis.__ZC_XP_STORE__?globalThis.__ZC_XP_STORE__.merge(s):s}",
+          "expect": 1,
+          "marker": "__ZC_XP_STORE__?globalThis.__ZC_XP_STORE__.merge(s):s"
+        },
+        {
+          "note": "写点（writeSettings e4 合并行）：patch 带 projectRemarks 时拆出落 store、从落盘内容剔除（官方 setting.json 纯净；3.12.2 丢备注机制即此行合并基础 EC(c) 不含该键导致覆盖冲掉）",
+          "find": "let c=await Qv(s),d={...EC(c),...e};",
+          "replace": "let c=await Qv(s),d=globalThis.__ZC_XP_STORE__?await globalThis.__ZC_XP_STORE__.extract(e,{...EC(c),...e}):{...EC(c),...e};",
+          "expect": 1,
+          "marker": "__ZC_XP_STORE__?await globalThis.__ZC_XP_STORE__.extract(e,"
+        },
+        {
+          "note": "settingService.get 常规路径（v2 修复：get 平时直调 t4 返回 l.settings，不走 Oce——merge 挂 Oce 读路径没接上，症状为 JSON 有数据但显示不生效；needsMigrationPersist 分支经 Oce 已有 merge）",
+          "find": "async get(){await e;let l=await t4();return l.needsMigrationPersist?(await n(async(d,u)=>{let p=await t4();p.needsMigrationPersist&&await e4(p.settings,d,o,u)}),Oce()):l.settings}",
+          "replace": "async get(){await e;let l=await t4();return l.needsMigrationPersist?(await n(async(d,u)=>{let p=await t4();p.needsMigrationPersist&&await e4(p.settings,d,o,u)}),Oce()):globalThis.__ZC_XP_STORE__?await globalThis.__ZC_XP_STORE__.merge(l.settings):l.settings}",
+          "expect": 1,
+          "marker": "merge(l.settings):l.settings"
+        },
+        {
+          "note": "交出 OAuth 服务句柄：Fn 是 Ky(l,{...}) 造的 OAuthService 实例（含 repo 凭据仓、logout、cancelPending），账号切换/快照全部经它做，不自己碰加密凭据。注意这里处在变量声明链里（不是表达式链），不能追加 `globalThis.x=y` 这样的赋值，只能把赋值塞进初始值。模块加载时 Fn 尚未赋值的时序无碍——使用方都在函数里惰性取 globalThis",
+          "find": "Fn=Ky(l,{apiClient:y,onProviderLogout:S})",
+          "replace": "Fn=(globalThis.__ZC_XP_OAUTH__=Ky(l,{apiClient:y,onProviderLogout:S}))",
+          "expect": 1,
+          "marker": "globalThis.__ZC_XP_OAUTH__=Ky(l,{apiClient:y,onProviderLogout:S})"
+        },
+        {
+          "note": "另交出渲染层真正在用的那台 OAuthService：RPC 注册表里 register(Vg, Ky(r,{...})) 的实例才是渲染层 oauthService 的落点，Ky(l,...) 那台属于 agent/CUA 运行时——代际计数与 onProviderLogout 回调都挂在实例上，打在后者不会让渲染层失效。凭据文件两者共用（credentialService 每次直读 credentials.json、无缓存），所以只拿到备用句柄也能读写正确，只是代际/通知不到位",
+          "find": ".register(Vg,Ky(r,{apiClient:i,onProviderLogout:c}))",
+          "replace": ".register(Vg,globalThis.__ZC_XP_OAUTH_RPC__=Ky(r,{apiClient:i,onProviderLogout:c}))",
+          "expect": 1,
+          "marker": "globalThis.__ZC_XP_OAUTH_RPC__=Ky(r,{apiClient:i,onProviderLogout:c})"
+        },
+        {
+          "note": "persistOAuthSession 尾部（落库成功 + assertCurrent 通过之后）挂账号快照：t=provider、r=tokenSet、o=profile。锚点里那个 } 是方法体的收尾（if 无花括号，throw 语句即 if 的全部主体），所以显式补分号结束 throw 语句，再把快照语句插在方法体末尾——类成员之间不能插语句。快照失败绝不能影响登录：saveAccount 内部自吞异常且不 await",
+          "find": "throw await p(),new Error(\"OAuth flow \\u5DF2\\u53D6\\u6D88\")}runPendingSessionCompletion(t,r){if(t.completionPromise)",
+          "replace": "throw await p(),new Error(\"OAuth flow \\u5DF2\\u53D6\\u6D88\");globalThis.__ZC_XP_STORE__&&globalThis.__ZC_XP_STORE__.saveAccount({provider:t,tokenSet:r,profile:o})}runPendingSessionCompletion(t,r){if(t.completionPromise)",
+          "expect": 1,
+          "marker": ");globalThis.__ZC_XP_STORE__&&globalThis.__ZC_XP_STORE__.saveAccount({provider:t,tokenSet:r,profile:o})}runPendingSessionCompletion"
+        }
+      ]
+    },
+    {
+      "file": "out/main/index.js",
+      "description": "主进程 web-remote-control 列表推送签名纳入 label + Directory Opus 接管（3.11.2 m4→EC、I_e→NN、k4→xl、SN→om、se/J→H/O；3.12.3 NN→HN、xl→Dl、om→im）",
+      "edits": [
+        {
+          "note": "buildWorkspaceListPushSignature 的 workspace 部分加入 label（se/J→H/O）",
+          "find": "JSON.stringify([H,O.kind,O.connectionState??\"connected\"",
+          "replace": "JSON.stringify([H,O.kind,O.label??\"\",O.connectionState??\"connected\"",
+          "expect": 1,
+          "marker": "O.kind,O.label??\"\""
+        },
+        {
+          "note": "文件头注入 Opus 模块副作用 import（挂 globalThis.__ZC_EXPAND_DOPUS__；chunk-KHSEGNJU.js 同名仍在；3.12.2 SN→om、3.12.3 om→im）",
+          "find": "import{a as im}from\"./chunk-KHSEGNJU.js\";",
+          "replace": "import\"./zcode-expand/zc-dopus.mjs\";import{a as im}from\"./chunk-KHSEGNJU.js\";",
+          "expect": 1,
+          "marker": "import\"./zcode-expand/zc-dopus.mjs\";"
+        },
+        {
+          "note": "openPathViaShell（EC，openInEditor explorer 目录分支）：Opus 在时接管（3.11.2 m4→EC、_D→Tl；3.12.3 Tl→Al）",
+          "find": "async function EC(e){let t=await Al.openPath(e);",
+          "replace": "async function EC(e){if(await globalThis.__ZC_EXPAND_DOPUS__?.(e))return{success:!0};let t=await Al.openPath(e);",
+          "expect": 1,
+          "marker": "__ZC_EXPAND_DOPUS__?.(e)"
+        },
+        {
+          "note": "openPathInFileManager（darwin 短路后、shell.openPath 前接管；I_e→NN、k4→xl、n/i→o/s；3.12.3 NN→HN、xl→Dl）",
+          "find": "if(process.platform===\"darwin\")return HN(o,t);let s=await Dl.openPath(o);",
+          "replace": "if(process.platform===\"darwin\")return HN(o,t);if(await globalThis.__ZC_EXPAND_DOPUS__?.(o))return{success:!0};let s=await Dl.openPath(o);",
+          "expect": 1,
+          "marker": "__ZC_EXPAND_DOPUS__?.(o)"
+        },
+        {
+          "note": "openInEditor explorer 文件分支（原 explorer.exe /select,）：Go 传文件完整路径，由 Opus 定位目录并选中（m4→EC、i→s）",
+          "find": "if(e===\"explorer\"){if(s!==\"file\")return EC(t);let a=[\"/select,\",t];",
+          "replace": "if(e===\"explorer\"){if(s!==\"file\")return EC(t);if(await globalThis.__ZC_EXPAND_DOPUS__?.(t))return{success:!0};let a=[\"/select,\",t];",
+          "expect": 1,
+          "marker": "__ZC_EXPAND_DOPUS__?.(t)"
+        }
+      ]
+    }
+  ]
+}

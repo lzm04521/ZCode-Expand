@@ -1,0 +1,9 @@
+{
+  "appVersion": "3.12.3",
+  "buildCommitId": "d7f8ea37",
+  "buildTime": "2026-09-16T14:59:46.787Z",
+  "electronBuilderVersion": "26.8.1",
+  "patchFormat": 1,
+  "createdAt": "2026-09-17",
+  "notes": "ZCode 3.12.3 基线补丁集（自 3.12.2 适配：chunk 名与压缩别名重定位）。锚点取自本机实测的 app.asar；升级 ZCode 后锚点可能失效，届时需按 docs/03-版本适配流程.md 重新定位。"
+}
