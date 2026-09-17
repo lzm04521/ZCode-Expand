@@ -21,6 +21,7 @@ const CONTENTS = [
   'patches',
   'src',
   'package.json',
+  'LICENSE',
   'apply.cmd',
   'restore.cmd',
   'verify.cmd',
