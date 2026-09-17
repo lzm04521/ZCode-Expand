@@ -1,0 +1,72 @@
+name: release-package
+
+# 轻包发版：pkg-<ZCode版本>-<序号> tag 触发（如 pkg-3.12.2-1，不与版本分支同名）。
+# workflow_dispatch 仅跑校验与组包，不发布。
+# 已知限制：runner 上没有 ZCode 安装，无法跑 apply:dry；产物的真实验证发生在
+# 用户本机 restore→apply（语法门禁 + 逐条自检 + 备份三条安全线全在彼处）。
+
+on:
+  push:
+    tags: ['pkg-*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: 静态校验（语法 + 补丁集一致性 + tag 版本防呆）
+        run: |
+          set -e
+          find scripts -name '*.mjs' -print -exec node --check {} \;
+          find src -type f \( -name '*.js' -o -name '*.mjs' \) -print -exec node --check {} \;
+          node -e '
+            const fs = require("fs");
+            for (const v of fs.readdirSync("patches")) {
+              const m = JSON.parse(fs.readFileSync(`patches/${v}/manifest.json`, "utf8"));
+              const p = JSON.parse(fs.readFileSync(`patches/${v}/patches.json`, "utf8"));
+              if (m.appVersion !== p.appVersion || m.appVersion !== v) {
+                throw new Error(`补丁集目录 ${v} 版本不一致：manifest=${m.appVersion} patches=${p.appVersion}`);
+              }
+              console.log(`patches/${v}: 一致 (${m.appVersion}, 构建 ${m.buildCommitId})`);
+            }
+          '
+          if [[ "$GITHUB_REF" == refs/tags/pkg-* ]]; then
+            v="${GITHUB_REF_NAME#pkg-}"
+            v="${v%-*}"
+            if [ ! -d "patches/$v" ]; then
+              echo "::error::tag 版本 $v 不存在于 patches/ 下（命名应为 pkg-<appVersion>-<序号>）"
+              exit 1
+            fi
+            echo "tag 防呆通过：patches/$v 存在"
+          fi
+
+      - name: 组轻包
+        run: node scripts/package.mjs --out=dist
+
+      - name: 发布 Release
+        if: startsWith(github.ref, 'refs/tags/pkg-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          v="${GITHUB_REF_NAME#pkg-}"
+          v="${v%-*}"
+          build=$(node -e "console.log(JSON.parse(require('fs').readFileSync('patches/$v/manifest.json','utf8')).buildCommitId)")
+          cat > notes.md <<EOF
+          ## ZCode-Expand 便携包 ${GITHUB_REF_NAME}
+
+          - 适用：ZCode Desktop **${v}**（构建 ${build}；包内含全部已适配版本补丁集，按本机版本自动选择）
+          - 前置：Windows + Node.js ≥ 18 + ZCode 完全退出（含托盘）
+          - 用法：解压后依次运行 \`restore.cmd\`（首次自动采集原始 asar 并还原）→ \`apply.cmd\`；仅回滚原始运行 \`restore.cmd\`；\`verify.cmd\` 校验状态（只读）
+          - 说明：本 Release 仅做静态校验（runner 无 ZCode 安装）；完整验证在 restore→apply 时进行（语法门禁 + 逐条自检 + 自动备份）
+          EOF
+          gh release create "$GITHUB_REF_NAME" dist/*.zip --title "$GITHUB_REF_NAME" --notes-file notes.md

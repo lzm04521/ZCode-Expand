@@ -1,6 +1,12 @@
 # 备份的原始 app.asar（体积大，不入版本库）
 backups/
 
+# pristine 原始 asar 本地留档（体积大，绝不入库）
+pristine/
+
+# 组包产物
+dist/
+
 # 应用状态记录（含时间戳与哈希，按需保留）
 state/
 
