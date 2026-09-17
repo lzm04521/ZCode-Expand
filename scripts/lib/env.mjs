@@ -1,5 +1,5 @@
 // 环境定位：安装目录、版本、进程状态、补丁集查找
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -17,16 +17,125 @@ export function parseArgs(argv = process.argv.slice(2)) {
   return out;
 }
 
-export function resolveInstallDir(args = {}) {
-  const dir =
-    args.home ||
-    process.env.ZCODE_HOME ||
-    join(process.env.LOCALAPPDATA ?? '', 'Programs', 'ZCode');
-  if (!dir) throw new Error('无法确定 ZCode 安装目录：请用 --home=<路径> 或设置 ZCODE_HOME');
-  if (!existsSync(join(dir, 'resources', 'app.asar'))) {
-    throw new Error(`安装目录下未找到 resources/app.asar：${dir}`);
+/** 目录是否像一个 ZCode 安装（resources\app.asar 在位），检测链各级共用 */
+const looksLikeInstall = (dir) => !!dir && existsSync(join(dir, 'resources', 'app.asar'));
+
+/** 快捷方式搜索根：用户/全机开始菜单 + 用户/公共桌面（ZCode 不写注册表，lnk 是唯一可靠发现渠道，见 doc/20260917-实施计划-安装目录自动检测.md） */
+function shortcutRoots() {
+  return [
+    join(process.env.APPDATA ?? '', 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+    join(process.env.ProgramData ?? '', 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+    join(process.env.USERPROFILE ?? '', 'Desktop'),
+    join(process.env.PUBLIC ?? '', 'Desktop'),
+  ].filter((d) => d && existsSync(d));
+}
+
+/** 递归查找 ZCode.lnk（严格匹配文件名，避免误匹配其它应用；限深 4 层防异常深树） */
+function findShortcuts(roots) {
+  const hits = [];
+  const walk = (dir, depth) => {
+    if (depth > 4) return;
+    let names;
+    try {
+      names = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of names) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) walk(p, depth + 1);
+      else if (e.name.toLowerCase() === 'zcode.lnk') hits.push(p);
+    }
+  };
+  for (const r of roots) walk(r, 0);
+  return hits;
+}
+
+/** PowerShell COM 解析 .lnk 的 TargetPath（与 listZCodeProcessPaths 同为 spawn powershell 的既有模式）；异常/空值返回 null */
+function resolveShortcutTarget(lnkPath) {
+  try {
+    const out = execFileSync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `(New-Object -ComObject WScript.Shell).CreateShortcut('${lnkPath.replaceAll("'", "''")}').TargetPath`,
+      ],
+      { encoding: 'utf8', windowsHide: true }
+    ).trim();
+    return out || null;
+  } catch {
+    return null;
   }
-  return dir;
+}
+
+/** 从快捷方式解析安装目录候选（去重；只保留 app.asar 在位的） */
+export function detectInstallFromShortcuts() {
+  const dirs = [];
+  for (const lnk of findShortcuts(shortcutRoots())) {
+    const target = resolveShortcutTarget(lnk);
+    if (!target) continue;
+    const dir = dirname(target);
+    if (looksLikeInstall(dir) && !dirs.some((d) => d.toLowerCase() === dir.toLowerCase())) dirs.push(dir);
+  }
+  return dirs;
+}
+
+/** 上次成功解析的安装目录记忆（state/ 已 git 忽略；失效时检测链自动重新发现） */
+function readInstallDirMemo() {
+  try {
+    return JSON.parse(readFileSync(join(stateDir(), 'install-dir.json'), 'utf8')).installDir ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeInstallDirMemo(dir) {
+  try {
+    mkdirSync(stateDir(), { recursive: true });
+    writeFileSync(
+      join(stateDir(), 'install-dir.json'),
+      JSON.stringify({ installDir: dir, recordedAt: new Date().toISOString() }, null, 2) + '\n',
+      'utf8'
+    );
+  } catch {
+    // 记忆失败不阻塞主流程，下次重新检测即可
+  }
+}
+
+/**
+ * 定位 ZCode 安装目录。优先级：--home > ZCODE_HOME > 默认路径 > state 记忆 > 快捷方式解析。
+ * 命中即写记忆；多候选不猜，列出让用户 --home 指定。
+ */
+export function resolveInstallDir(args = {}) {
+  const explicit = args.home || process.env.ZCODE_HOME;
+  if (explicit) {
+    if (!looksLikeInstall(explicit)) {
+      throw new Error(`指定的安装目录下未找到 resources/app.asar：${explicit}`);
+    }
+    writeInstallDirMemo(explicit);
+    return explicit;
+  }
+  const def = join(process.env.LOCALAPPDATA ?? '', 'Programs', 'ZCode');
+  if (looksLikeInstall(def)) {
+    writeInstallDirMemo(def);
+    return def;
+  }
+  const memo = readInstallDirMemo();
+  if (looksLikeInstall(memo)) return memo;
+  const candidates = detectInstallFromShortcuts();
+  if (candidates.length === 1) {
+    writeInstallDirMemo(candidates[0]);
+    return candidates[0];
+  }
+  if (candidates.length > 1) {
+    throw new Error(`发现多个 ZCode 安装：\n  - ${candidates.join('\n  - ')}\n请用 --home=<目录> 指定。`);
+  }
+  throw new Error(
+    `未找到 ZCode 安装目录（已尝试：--home / ZCODE_HOME / 默认 ${def || '(LOCALAPPDATA 未设置)'} / state 记忆 / 开始菜单与桌面快捷方式）。\n` +
+      `请用 --home=<目录> 指定，或设置 ZCODE_HOME 环境变量。`
+  );
 }
 
 export function installPaths(installDir) {
