@@ -7,7 +7,7 @@
 //   node scripts/package.mjs --out=<目录>       # 默认 dist/
 
 import { existsSync, mkdirSync, rmSync, cpSync, statSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseArgs, listPatchVersions, REPO_ROOT } from './lib/env.mjs';
 import { sha256 } from './lib/asar.mjs';
@@ -49,7 +49,8 @@ function zipDir(stagingDir, zipPath) {
 async function main() {
   const args = parseArgs();
   const withPristine = !!args['with-pristine'];
-  const outDir = typeof args.out === 'string' ? args.out : join(REPO_ROOT, 'dist');
+  // 绝对化：zip 在 cwd=staging 下执行，相对路径的产物路径会被解析到 staging 内（Action 实测踩坑）
+  const outDir = resolve(typeof args.out === 'string' ? args.out : join(REPO_ROOT, 'dist'));
 
   const versions = listPatchVersions();
   if (versions.length === 0) throw new Error('patches/ 下没有补丁集，无包可组。');
