@@ -19,6 +19,8 @@
 
 ## 快速开始
 
+两种使用方式：**clone 本仓库跑 npm script**（开发、适配、日常维护，本节）或**下载 Release 便携包解压即用**（免 clone，见下节）。
+
 运行前提：Windows + ZCode Desktop `3.12.3`（默认安装位置 `%LOCALAPPDATA%\Programs\ZCode`）+ Node ≥ 18。零 npm 依赖，离线可用。
 
 ```bash
@@ -39,6 +41,23 @@ npm run rollback:list
 npm run rollback
 ```
 
+## 从 Release 便携包使用（免 clone）
+
+[Releases](https://github.com/lzm04521/ZCode-Expand/releases) 提供轻量便携包 `zcode-expand-<版本>.zip`（约 85KB，只含脚本、补丁定义与功能源码，**不含 ZCode 本体**）。包内含全部已适配版本补丁集，按本机 ZCode 版本自动选择。
+
+```bat
+:: 1. 下载解压（需要 Node ≥ 18），完全退出 ZCode（含托盘）
+restore.cmd --check      & :: 只读检查：版本三方校验、本机是否干净安装
+restore.cmd              & :: 还原原始 asar；首次运行自动采集干净安装为 pristine（此后可随时还原）
+apply.cmd                & :: 应用补丁（语法门禁 + 逐条自检 + 自动备份）
+verify.cmd               & :: 校验锚点与补丁状态（只读）
+```
+
+- **日常更新**：解压新 Release 覆盖 → `restore.cmd` → `apply.cmd`（无条件还原再应用，`src/` 迭代后不会残留旧产物）
+- **仅回滚原始 ZCode**：单跑 `restore.cmd`
+- **pristine**：本机采集的原始 asar（`pristine/<版本>/`，含 SHA256 清单），是还原与完整包的唯一真源；同版本不同构建号（buildCommitId）的 ZCode 会被三方校验拦截——那需要按适配流程重建补丁集
+- 发版格式 `pkg-<ZCode版本>-<序号>`：新版本适配后左段更新右段归 1，进包内容迭代右段 +1，由 GitHub Action 自动静态校验并发布
+
 ## 目录结构
 
 ```
@@ -50,7 +69,9 @@ scripts/
   inspect.mjs           总览
   verify.mjs            校验锚点与补丁状态
   apply.mjs             应用补丁（备份 → 重建 → 自检 → 替换）
+  restore.mjs           还原原始 asar（首次自动采集 pristine + 三方版本校验）
   rollback.mjs          从备份恢复
+  package.mjs           组便携包（轻包 / --with-pristine 完整包）
   extract.mjs           从 asar 取内容/搜索锚点（版本适配主力工具）
 patches/<版本>/
   manifest.json         目标版本与构建号
@@ -62,6 +83,8 @@ src/                    我们自己的源码（不进压缩包，apply 时注�
   main/zc-store.mjs       扩展数据存储 zcode-expand.json 读写 + BigModel 账号切换执行（host 进程注入）
 backups/                原始 app.asar 备份（git 忽略）
 state/                  应用记录（git 忽略）
+pristine/               本机采集的原始 asar 与完整性清单（git 忽略，还原真源）
+dist/                   组包产物（git 忽略）
 docs/                   机制说明 / 自定义面清单 / 版本适配流程 / 设计记录
 ```
 
