@@ -30,6 +30,11 @@
  *       数字，与官方 hasUnread 同源）。刻意不用官方 taskListHasUnread——它的
  *       清除时机随版本变化（3.12.2 点击项目即清），自判定只跟随任务本身的
  *       未读状态：点开任务查看（官方清 unreadAt）或下一轮开跑才消失。
+ *   isTaskListWaiting(taskItems) -> boolean
+ *       项目行红点（等待确认，优先级最高，覆盖蓝绿点）：任一任务带待处理
+ *       的权限/输入确认。与官方任务行「等待确认」标签同源判定（Pce）：
+ *       __zcodeSessionActivity.pendingInteractions 的 permissionCount +
+ *       userInputCount > 0（taskList.permissionTag/userInputTag 都算）。
  *   diag() -> object
  *       自检信息，便于确认注入是否生效。
  * ---------------------------------------------------------------------------
@@ -37,7 +42,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.5.0';
+  var VERSION = '1.6.0';
 
   // v1.4 遗留的 localStorage 存储键：现在只作迁移源（真身在 host 进程的
   // ~/.zcode/v2/zcode-expand.json，由包内补丁的读/写挂钩提供）。migrate() 成功
@@ -72,6 +77,11 @@
     doneDot: {
       color: '',
     },
+    // 等待确认红点（zc-xp-waiting，静态，优先级最高：覆盖运行蓝点与完成绿
+    // 点）。默认走官方类 bg-destructive（官方 error 指示点同款）。
+    waitingDot: {
+      color: '',
+    },
     // 兜底配色：优先使用应用自身的主题变量，取不到时用这些值
     fallback: {
       surface: '#1f1f22',
@@ -104,6 +114,9 @@
       }
       if (parsed.doneDot && typeof parsed.doneDot === 'object') {
         if (typeof parsed.doneDot.color === 'string') CONFIG.doneDot.color = parsed.doneDot.color;
+      }
+      if (parsed.waitingDot && typeof parsed.waitingDot === 'object') {
+        if (typeof parsed.waitingDot.color === 'string') CONFIG.waitingDot.color = parsed.waitingDot.color;
       }
       if (parsed.fallback && typeof parsed.fallback === 'object') {
         Object.keys(parsed.fallback).forEach(function (key) {
@@ -265,8 +278,29 @@
     return false;
   }
 
-  // 运行点/完成点的动画与可选配色覆盖（class zc-xp-running / zc-xp-done）。
-  // 颜色默认走补丁里复用的官方类（bg-sky-500 dark:bg-sky-400 / bg-success），
+  // 等待确认（红点）：与官方任务行「等待确认」标签同源判定（Pce）——
+  // pendingInteractions.permissionCount + userInputCount > 0，权限确认和
+  // 用户输入都算。优先级最高：补丁里排在运行蓝点与完成绿点之前。
+  function isTaskListWaiting(taskItems) {
+    if (!CONFIG.enabled) return false;
+    if (!Array.isArray(taskItems)) return false;
+    for (var i = 0; i < taskItems.length; i++) {
+      var task = taskItems[i];
+      if (!task || typeof task !== 'object') continue;
+      var activity = task.__zcodeSessionActivity;
+      if (!activity || typeof activity !== 'object') continue;
+      var pending = activity.pendingInteractions;
+      if (!pending || typeof pending !== 'object') continue;
+      var permission = typeof pending.permissionCount === 'number' ? pending.permissionCount : 0;
+      var userInput = typeof pending.userInputCount === 'number' ? pending.userInputCount : 0;
+      if (permission + userInput > 0) return true;
+    }
+    return false;
+  }
+
+  // 运行点/完成点/等待点的动画与可选配色覆盖（class zc-xp-running /
+  // zc-xp-done / zc-xp-waiting）。颜色默认走补丁里复用的官方类
+  // （bg-sky-500 dark:bg-sky-400 / bg-success / bg-destructive），
   // 只有显式配置了颜色才注入 background 规则（非 layer 规则可覆盖
   // Tailwind utilities）。动画尊重系统"减少动态效果"偏好。
   function ensureRunningDotStyle() {
@@ -285,6 +319,9 @@
     }
     if (CONFIG.doneDot && CONFIG.doneDot.color) {
       rules.push('.zc-xp-done{background:' + CONFIG.doneDot.color + '}');
+    }
+    if (CONFIG.waitingDot && CONFIG.waitingDot.color) {
+      rules.push('.zc-xp-waiting{background:' + CONFIG.waitingDot.color + '}');
     }
     var el = document.createElement('style');
     el.id = STYLE_ID;
@@ -503,6 +540,7 @@
         dialogTitle: CONFIG.dialogTitle,
         runningDotColor: CONFIG.runningDot.color || '(official sky)',
         doneDotColor: CONFIG.doneDot.color || '(official success)',
+        waitingDotColor: CONFIG.waitingDot.color || '(official destructive)',
       },
     };
   }
@@ -521,6 +559,7 @@
     edit: edit,
     isTaskListBusy: isTaskListBusy,
     isTaskListDone: isTaskListDone,
+    isTaskListWaiting: isTaskListWaiting,
     diag: diag,
     reload: function () {
       currentOverrideRaw = applyOverrides();

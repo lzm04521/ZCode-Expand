@@ -11,7 +11,7 @@
 - 已实现功能：**项目列表备注 + 项目行任务状态点 + 手机远控（Web 远程控制）适配 + Directory Opus 适配 + BigModel 账号管理/快速切换**
   - 侧边栏项目行可写备注，有备注显示备注，无备注显示文件夹名；备注弹窗打开时光标定位到文本末尾（不全选、防一次输入覆盖旧内容），「编辑备注」点击后菜单自动收起
   - 备注存储升级免疫：真身存 `~/.zcode/v2/zcode-expand.json` 明文 JSON（host 进程读点并入 / 写点拆出并剔除，官方 `setting.json` 保持纯净），ZCode 升级不丢备注；localStorage 旧数据一次性自动迁移
-  - 项目行状态点（蓝绿状态机）：项目下有任务正在执行时显示**蓝色脉冲点**（判定与官方任务行 spinner 同源：`__zcodeSessionActivity.phase ∈ prewarming/running`，颜色复用官方 `sky` 类）；任务结束但有未读输出（多为完成待查看）时转**绿色静态点**（官方 `bg-success`），自判定 `isTaskListDone`——点项目本身不清绿，点开任务或下轮开跑才清
+  - 项目行状态点（红蓝绿状态机）：项目下存在等待确认的任务（权限/输入确认，判定与官方任务行「等待确认」标签同源：`__zcodeSessionActivity.pendingInteractions.permissionCount + userInputCount > 0`）时显示**红色静态点**（官方 `bg-destructive`，优先级最高，覆盖蓝绿）；有任务正在执行时显示**蓝色脉冲点**（判定与官方任务行 spinner 同源：`__zcodeSessionActivity.phase ∈ prewarming/running`，颜色复用官方 `sky` 类）；任务结束但有未读输出（多为完成待查看）时转**绿色静态点**（官方 `bg-success`），自判定 `isTaskListDone`——点项目本身不清绿，点开任务或下轮开跑才清
   - 手机网页适配：项目列表显示备注名（屏幕小，不拼接文件夹名）、改备注后已连接手机即时刷新；会话页（新建会话/历史会话详细）顶部标题显示当前工作区备注，无备注降级文件夹名
   - Directory Opus 适配：Windows 检测到 Opus（`dopusrt`/`dopus`）时，"打开文件夹/资源管理器"各入口（会话右键、标题栏「文件」菜单、文件树右键、聊天文件链接/预览面板）改由 `dopusrt /acmd Go <路径> NEWTAB=tofront` 打开——文件传完整路径，由 Opus 定位到所在目录并选中；未装 Opus 行为不变，WSL 工作区仍走系统资源管理器
   - BigModel 账号管理 + 快速切换：BigModel OAuth 登录成功后把账号快照（凭据）存进 `zcode-expand.json` 的 `accounts`；模型设置页 BigModel 卡片「解绑」旁多出「**切换账号**」按钮，弹窗列出已存账号、点选即换凭据免重启；切换走 settings 字段状态机 + 官方 `OAuthCredentialRepo`/`logout`，失败按备份回滚，明文令牌刻意不进 `setting.json` 与 zod schema
