@@ -29,3 +29,6 @@ CLAUDE.md
 doc/*
 docs/*
 handoff/*
+# 本地工具缓存（CodeGraph 索引、Playwright MCP 快照）
+.codegraph/
+.playwright-mcp/
