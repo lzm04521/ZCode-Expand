@@ -1,0 +1,9 @@
+{
+  "appVersion": "3.14.0",
+  "buildCommitId": "a1328db1",
+  "buildTime": "2026-09-19T01:46:14.799Z",
+  "electronBuilderVersion": "26.8.1",
+  "patchFormat": 1,
+  "createdAt": "2026-09-19",
+  "notes": "ZCode 3.14.0 基线补丁集（自 3.12.3 适配：chunk 名与压缩别名大面积重定位，36 处锚点已逐一验证唯一）。快照上传阻断编辑退役：官方 3.14.0 已整体移除 host 侧仓库快照上传链路（repoSnapshotTokenProvider/RepoSnapshotSidecarService/captureBeforePromptUnsafe/flushActiveUpload 全包 0 命中）。锚点取自本机实测的 app.asar；升级 ZCode 后锚点可能失效，届时需按 docs/03-版本适配流程.md 重新定位。"
+}
