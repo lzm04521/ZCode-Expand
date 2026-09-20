@@ -1,0 +1,9 @@
+{
+  "appVersion": "3.14.1",
+  "buildCommitId": "cead36fd",
+  "buildTime": "2026-09-20T07:37:29.416Z",
+  "electronBuilderVersion": "26.8.1",
+  "patchFormat": 1,
+  "createdAt": "2026-09-21",
+  "notes": "ZCode 3.14.1 补丁集（自 3.14.0 适配，仅隔 1 天的小版本：7 个目标 chunk 全部改名、host 头 import 别名列表整体重排；36 锚点中 23 处零位移、13 处重定位，位移明细见 patches.json summary 的 3.14.1 适配要点段）。锚点取自本机实测的 app.asar；升级 ZCode 后锚点可能失效，届时需按 docs/03-版本适配流程.md 重新定位。"
+}
