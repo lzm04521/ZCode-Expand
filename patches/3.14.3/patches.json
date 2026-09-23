@@ -220,6 +220,13 @@
           "replace": "d.formatMessage({id:`settings.modelProvider.codingPlan.disconnect`})]}):null,m??null]})}",
           "expect": 1,
           "marker": "})]}):null,m??null]})}"
+        },
+        {
+          "note": "禁用会话面板 Esc 终止任务：v4-pane window keydown 监听中 Escape 分支恒假短路（!1&&），停止按钮 Oi(`button`) 不受影响；Ggt 为 dialog 守卫、Oi(`escape`) 全文件唯一（styles-DEELZGp2.js @3273962）。版本适配：grep Oi(`escape`) 定位（压缩字符串是反引号，双引号搜索假阴性）",
+          "find": "!Fe?.control.canStop)return;let e=e=>{e.key===`Escape`&&(Ggt(e)||(e.preventDefault(),Oi(`escape`)))};",
+          "replace": "!Fe?.control.canStop)return;let e=e=>{!1&&e.key===`Escape`&&(Ggt(e)||(e.preventDefault(),Oi(`escape`)))};",
+          "expect": 1,
+          "marker": "!1&&e.key===`Escape`&&(Ggt(e)||(e.preventDefault(),Oi(`escape`)))};"
         }
       ]
     },
