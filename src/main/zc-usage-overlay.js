@@ -131,6 +131,24 @@
           });
           best[k] = { el: inner, top: innerTop };   // 容器在即派发；el=null 时实例走自带 deepFind 兜底
         });
+        /* SidePane/辅助对话兜底（zc 修复 2026-09-30）：主路径只认 [data-pane-id] 容器，
+         * WorkspaceShell 的 SidePane 视图（辅助对话/子代理会话 tab，渲染层类型
+         * selection-side-chat / subagent-session，带 childSessionId 挂主会话下）没有
+         * pane-id，其输入框会被主路径无视；下方"无 pane 布局回退"又只在全文档无任何
+         * pane 容器时才跑（主对话在，永远不跑）。追加扫描"不在任何 pane 容器内的下半屏
+         * 可见输入框"归独立 "side" 键派发实例（保留下半屏约束排除设置页搜索框等杂项；
+         * sid 走祖先链 data-session-id，识别不到则显示今日+零值占位）。 */
+        if (!("side" in best)) {
+          var sideEl = null, sideTop = -Infinity;
+          document.querySelectorAll(SEL).forEach(function (el) {
+            if (el.closest && el.closest('[data-pane-id]')) return;   // pane 容器内的归主路径
+            var r = el.getBoundingClientRect();
+            if (!(r.width > 40 && r.height > 8 && r.bottom > 0 && r.top < innerHeight)) return;
+            if (r.top < innerHeight * 0.45) return;
+            if (r.top > sideTop) { sideEl = el; sideTop = r.top; }
+          });
+          if (sideEl) best["side"] = { el: sideEl, top: sideTop };
+        }
         /* 回退：页面无任何 pane 容器（非聊天主布局/未来改版）→ 原启发式
          * （下半屏可见输入框归 "auto" 键），仅覆盖无 pane 布局变体。 */
         if (!Object.keys(best).length) {
