@@ -1190,6 +1190,7 @@
           if (state.data) render(state.data);
         }
       }
+      refreshWants();   // zc 修复：周期上报 wants（getSid 已含未渲染的 instSid/pendingSid），首帧解锁不依赖 render 时序
       if (!composer && slot === 0) collectDiag();   // 一直找不到输入框的窗口：周期性写环境诊断（everMounted 门防覆盖）
       if (composer) {
         if (!cardCache || !cardCache.isConnected) {
@@ -1425,7 +1426,7 @@
       /* zc 优化 2026-09-30：泵首帧 payload 未到时显示加载态（原渲染全零 view 观感差）。
        * lastHtml 置哨兵值，首帧真数据 h.s 必然不同 → 正常重建。⚙ 在 zu-main 之外不受影响。 */
       lastHtml = "\x00loading";
-      main.innerHTML = '<span class="dim">数据加载中…</span>';
+      main.innerHTML = '<span class="dim">胶囊统计数据加载中...</span>';
     }
 
     var api = {
@@ -1437,7 +1438,11 @@
       },
       render: render,
       rebuild: function () { buildPanel(); rebuildExcBubble(); syncPanel(); },
-      getSid: function () { return pickedSid || ""; },
+      /* zc 修复 2026-09-30：pickedSid 只在 render 内赋值，而 render 需要 state.data（泵推送）、
+       * 泵推送又需要 wants 非空——若只认 pickedSid 则首帧死锁（卡"数据加载中"）。
+       * getSid 扩展为「已选会话 ‖ 已对账会话 ‖ 协调器刚派发的会话」，配合 heavy 周期
+       * refreshWants，attach 后 600ms 内 sid 必然进 wants，泵任一触发（watch/boot-retry/心跳）即解锁。 */
+      getSid: function () { return pickedSid || instSid || pendingSid || ""; },
     };
     instances.push(api);
     refreshWants();

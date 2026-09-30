@@ -8,7 +8,7 @@
 // 纯函数（escapeForExecuteJavaScript/parseWants/shouldQueryRemote）node 下可测；启动逻辑 electron 守卫。
 
 import { Worker } from 'node:worker_threads';
-import { readFileSync, existsSync, watch } from 'node:fs';
+import { readFileSync, existsSync, watch, appendFileSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -23,6 +23,21 @@ const REMOTE_NEG_OK_MS = 2 * 60 * 1000;          // 远端确认"无此会话"�
 const REMOTE_FAIL_BACKOFF_MS = 60 * 1000;        // ssh 失败 60s 退避（§7）
 const LOG = (...a) => { try { console.log('[zc-usage]', ...a); } catch {} };
 const noop = () => {};
+
+// 排查日志：~/.zcode/zcode-expand/usage-debug 标记文件存在时启用（pump 链路各节点 append 到
+// pump-debug.log，超 512KB 截断）。排查完删标记文件即恢复静默。
+const DEBUG_DIR = join(homedir(), '.zcode', 'zcode-expand');
+const DEBUG_MARK = join(DEBUG_DIR, 'usage-debug');
+function debugLog(...a) {
+  try {
+    if (!existsSync(DEBUG_MARK)) return;
+    try { mkdirSync(DEBUG_DIR, { recursive: true }); } catch {}
+    const p = join(DEBUG_DIR, 'pump-debug.log');
+    const line = new Date().toISOString().slice(11, 23) + ' ' + a.join(' ') + '\n';
+    appendFileSync(p, line);
+    try { if (statSync(p).size > 512 * 1024) writeFileSync(p, line); } catch {}
+  } catch {}
+}
 
 // ---- 纯函数（node 下单测，Task 4 Step 3）----
 
@@ -175,7 +190,7 @@ function fetchRemote(sids) {
 // ---- 推送主循环 ----
 async function pumpOnce(reason) {
   const wins = (BrowserWindowRef ? BrowserWindowRef.getAllWindows() : []).filter((w) => w && !w.isDestroyed() && w.webContents);
-  if (!wins.length) return;
+  if (!wins.length) { debugLog(reason, 'wins=0 skip'); return; }
   const wantLists = await Promise.all(wins.map((w) =>
     Promise.race([
       w.webContents.executeJavaScript('window.__zusageWantSids||null', true).catch(() => null),
@@ -183,11 +198,12 @@ async function pumpOnce(reason) {
     ])));
   const sids = [];
   for (const list of wantLists) for (const s of parseWants(list)) if (!sids.includes(s)) sids.push(s);
-  if (!sids.length) return;                      // overlay 未注入/无实例：心跳 30s 兜底重试
+  if (!sids.length) { debugLog(reason, 'wants empty, lists=', JSON.stringify(wantLists)); return; }
   let payload;
   try {
     payload = await workerQuery(sids);
   } catch (e) {
+    debugLog(reason, 'query FAIL', String((e && e.message) || e));
     LOG('查询失败(' + reason + '):', String((e && e.message) || e));
     return;
   }
@@ -223,9 +239,11 @@ async function pumpOnce(reason) {
     remoteTimer = null;
   }
   const code = 'window.__zusageUpdate(' + escapeForExecuteJavaScript(JSON.stringify(payload)) + ')';
+  let pushed = 0;
   for (const w of wins) {
-    try { w.webContents.executeJavaScript(code, true).catch(noop); } catch {}
+    try { w.webContents.executeJavaScript(code, true).then(() => { pushed++; }, () => {}); } catch {}
   }
+  debugLog(reason, 'pushed_pending=' + wins.length, 'sids=' + sids.join(',').slice(0, 120), 'known=' + (payload.known || []).length);
   lastPumpAt = Date.now();
 }
 
