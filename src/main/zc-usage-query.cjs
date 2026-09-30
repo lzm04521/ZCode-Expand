@@ -239,7 +239,13 @@ if (!isMainThread && parentPort) {
         if (!todayCache || Date.now() - todayCache.at > TTL_MS) todayCache = { v: todayUsage(db), at: Date.now() };
         today = todayCache.v;
       }
-      parentPort.postMessage({ type: 'result', seq: m.seq, payload: { recent, today } });
+      // known：legal sids 中本地真实存在的（session 表或 model_usage 有行，§7 双重白名单）——泵侧 SSH 分流依据
+      const known = [];
+      if (db) for (const sid of seen) {
+        const hit = db.prepare('SELECT (SELECT COUNT(*) FROM session WHERE id=?) a, (SELECT COUNT(*) FROM model_usage WHERE session_id=?) b').get(sid, sid);
+        if (hit.a + hit.b > 0) known.push(sid);
+      }
+      parentPort.postMessage({ type: 'result', seq: m.seq, payload: { recent, today, known } });
     } catch (e) {
       parentPort.postMessage({ type: 'error', seq: m.seq, message: String((e && e.stack) || e) });
     }
