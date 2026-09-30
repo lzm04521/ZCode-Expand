@@ -6,22 +6,27 @@
 
 ## 现状
 
-- 目标应用：ZCode Desktop `3.12.3`（构建 `d7f8ea37`，2026-09-16）；历史版本补丁集 `3.11.2` / `3.12.2` 同库保留
-- 已实现补丁集：`patches/3.12.3/`
-- 已实现功能：**项目列表备注 + 项目行任务状态点 + 手机远控（Web 远程控制）适配 + Directory Opus 适配 + BigModel 账号管理/快速切换**
+- 目标应用：ZCode Desktop `3.14.4`（构建 `10bbcea5`，2026-09-29）；历史版本补丁集 `3.11.2` / `3.12.2` / `3.12.3` / `3.14.0` / `3.14.1` / `3.14.3` 同库保留
+- 已实现补丁集：`patches/3.14.4/`
+- 已实现功能：**项目列表备注 + 项目行任务状态点 + 手机远控（Web 远程控制）适配 + Directory Opus 适配 + BigModel 账号管理/快速切换 + Token 用量状态栏**
   - 侧边栏项目行可写备注，有备注显示备注，无备注显示文件夹名；备注弹窗打开时光标定位到文本末尾（不全选、防一次输入覆盖旧内容），「编辑备注」点击后菜单自动收起
   - 备注存储升级免疫：真身存 `~/.zcode/v2/zcode-expand.json` 明文 JSON（host 进程读点并入 / 写点拆出并剔除，官方 `setting.json` 保持纯净），ZCode 升级不丢备注；localStorage 旧数据一次性自动迁移
   - 项目行状态点（红蓝绿状态机）：项目下存在等待确认的任务（权限/输入确认，判定与官方任务行「等待确认」标签同源：`__zcodeSessionActivity.pendingInteractions.permissionCount + userInputCount > 0`）时显示**红色静态点**（官方 `bg-destructive`，优先级最高，覆盖蓝绿）；有任务正在执行时显示**蓝色脉冲点**（判定与官方任务行 spinner 同源：`__zcodeSessionActivity.phase ∈ prewarming/running`，颜色复用官方 `sky` 类）；任务结束但有未读输出（多为完成待查看）时转**绿色静态点**（官方 `bg-success`），自判定 `isTaskListDone`——点项目本身不清绿，点开任务或下轮开跑才清
   - 手机网页适配：项目列表显示备注名（屏幕小，不拼接文件夹名）、改备注后已连接手机即时刷新；会话页（新建会话/历史会话详细）顶部标题显示当前工作区备注，无备注降级文件夹名
   - Directory Opus 适配：Windows 检测到 Opus（`dopusrt`/`dopus`）时，"打开文件夹/资源管理器"各入口（会话右键、标题栏「文件」菜单、文件树右键、聊天文件链接/预览面板）改由 `dopusrt /acmd Go <路径> NEWTAB=tofront` 打开——文件传完整路径，由 Opus 定位到所在目录并选中；未装 Opus 行为不变，WSL 工作区仍走系统资源管理器
   - BigModel 账号管理 + 快速切换：BigModel OAuth 登录成功后把账号快照（凭据）存进 `zcode-expand.json` 的 `accounts`；模型设置页 BigModel 卡片「解绑」旁多出「**切换账号**」按钮，弹窗列出已存账号、点选即换凭据免重启；切换走 settings 字段状态机 + 官方 `OAuthCredentialRepo`/`logout`，失败按备份回滚，明文令牌刻意不进 `setting.json` 与 zod schema
+  - Token 用量状态栏：输入卡片下方居中的胶囊条（**速度**tok/s 三档变色、**上下文**进度条+占比、**本轮**、**会话累计**、**工具调用**、**今日合计**、**子代理**明细面板、⚙ 各项开关/窗口覆盖），悬停任意项出明细 tooltip；分屏每个 pane 一条、辅助对话（SidePane）独立一条、互不串显；字号跟随「设置 → 外观 → 界面字号」实时联动
+    - 数据只读本地 `~/.zcode/cli/db/db.sqlite`（`node:sqlite` worker 按需聚合，零 Python 零轮询）：`fs.watch` db 目录事件驱动 + 30s 心跳，请求完成落库后 1~3s 内跳数
+    - 口径透明自研（设计文档 §5/§13）：主循环白名单排除标题生成等杂项、`cancelled` 计入 `error` 不计、本轮直接用官方 `turn_usage` 预聚合、GLM 缓存**包含制**（上下文 = `input_tokens`）、窗口映射 `[1M]` 后缀/GLM-5.3 系 = 1M 默认 128K（⚙ 可覆盖）
+    - 上游（xhwxt/zcode-token-usage-statusbar，MIT）的 6+6 快照池漏历史会话、"下半屏可见"启发式漏上半屏输入框、IPC 焦点通道断链三大缺陷均已根除（按需查询 + pane 容器锚）
+    - 可选 SSH 远程会话：配置 `~/.zcode/zcode-expand/usage-config.json` 的 `remote` 段后，本地查不到的会话自动 SSH 到远端跑同一查询脚本（☁ 徽标、远端今日、负缓存/失败退避）；排查日志：创建 `~/.zcode/zcode-expand/usage-debug` 标记文件后泵链路写 `pump-debug.log`
 - 补丁已应用于本机安装，apply / verify / 重复 apply / rollback 全循环验证通过；回滚见下文「已知限制」
 
 ## 快速开始
 
 两种使用方式：**clone 本仓库跑 npm script**（开发、适配、日常维护，本节）或**下载 Release 便携包解压即用**（免 clone，见下节）。
 
-运行前提：Windows + ZCode Desktop `3.12.3`（默认安装位置 `%LOCALAPPDATA%\Programs\ZCode`）+ Node ≥ 18。零 npm 依赖，离线可用。
+运行前提：Windows + ZCode Desktop `3.14.4`（默认安装位置 `%LOCALAPPDATA%\Programs\ZCode`）+ Node ≥ 18。零 npm 依赖，离线可用。
 
 ```bash
 # 看当前状态（安装版本、补丁是否就位、备份列表）
@@ -81,6 +86,9 @@ src/                    我们自己的源码（不进压缩包，apply 时注�
   renderer/zc-accounts.js BigModel 账号管理 + 快速切换（模型设置页卡片按钮 + 账号选择弹窗）
   main/zc-dopus.mjs       Directory Opus 接管「打开文件夹/资源管理器」入口模块
   main/zc-store.mjs       扩展数据存储 zcode-expand.json 读写 + BigModel 账号切换执行（host 进程注入）
+  main/zc-usage.mjs       Token 用量状态栏泵（主进程：fs.watch db → 按需查询 → 推送；SSH 远程）
+  main/zc-usage-query.cjs Token 用量查询体（node:sqlite 只读聚合，worker/CLI 双模式）
+  main/zc-usage-overlay.js Token 用量胶囊状态条（原版 overlay 裁剪改造，纯 DOM 不碰 React）
 backups/                原始 app.asar 备份（git 忽略）
 state/                  应用记录（git 忽略）
 pristine/               本机采集的原始 asar 与完整性清单（git 忽略，还原真源）
