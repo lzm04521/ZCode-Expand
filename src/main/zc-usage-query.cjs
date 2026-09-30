@@ -208,3 +208,40 @@ if (require.main === module) {
   if (remote) for (const r of payload.recent) r.remote = true;
   console.log(JSON.stringify(payload));
 }
+
+// ---- worker 模式（泵 readFileSync 本文件后 new Worker(src,{eval:true}) 载入）----
+// 消息协议（Task 4 泵侧依赖）：泵→worker {type:'query', sids:[...], seq}；
+// worker→泵 {type:'result', seq, payload:{recent,today}} 或 {type:'error', seq, message}。
+// 单会话快照与 today 各 2s TTL 缓存（§5.4，扛 fs.watch 抖动期的重复聚合）。
+const { isMainThread, parentPort } = require('worker_threads');
+if (!isMainThread && parentPort) {
+  let db = null;
+  const snapCache = new Map();        // sid -> { snap, at }
+  let todayCache = null;              // { v, at }
+  const TTL_MS = 2000;
+  parentPort.on('message', (m) => {
+    if (!m || m.type !== 'query') return;
+    try {
+      if (!db) db = openDb();         // db 尚未建库时逐次重试打开（ZCode 首启竞态）
+      let recent = [];
+      let today = null;
+      if (db) {
+        const seen = new Set();
+        recent = [];
+        for (const sid of Array.isArray(m.sids) ? m.sids : []) {
+          if (typeof sid !== 'string' || !SID_RE.test(sid) || seen.has(sid)) continue;
+          seen.add(sid);
+          const c = snapCache.get(sid);
+          const snap = c && Date.now() - c.at < TTL_MS ? c.snap : sessionSnapshot(db, sid);
+          snapCache.set(sid, { snap, at: Date.now() });
+          recent.push(snap);
+        }
+        if (!todayCache || Date.now() - todayCache.at > TTL_MS) todayCache = { v: todayUsage(db), at: Date.now() };
+        today = todayCache.v;
+      }
+      parentPort.postMessage({ type: 'result', seq: m.seq, payload: { recent, today } });
+    } catch (e) {
+      parentPort.postMessage({ type: 'error', seq: m.seq, message: String((e && e.stack) || e) });
+    }
+  });
+}
