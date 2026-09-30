@@ -198,7 +198,7 @@ async function pumpOnce(reason) {
     ])));
   const sids = [];
   for (const list of wantLists) for (const s of parseWants(list)) if (!sids.includes(s)) sids.push(s);
-  if (!sids.length) { debugLog(reason, 'wants empty, lists=', JSON.stringify(wantLists)); return; }
+  if (!sids.length) debugLog(reason, 'wants empty → today-only push');   // draft/新建任务页：无会话 sid 可上报，仍查推 today-only payload（workerQuery([]) recent 空、today 照算）让 overlay 退出加载态并持续显示今日合计
   let payload;
   try {
     payload = await workerQuery(sids);
