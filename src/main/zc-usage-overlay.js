@@ -1421,13 +1421,10 @@
     requestAnimationFrame(track);
 
     syncPanel();
-    if (state.data) render(state.data);   // 已有共享数据（后 spawn 的实例）直接渲染，不用零值覆盖
-    else {
-      /* zc 优化 2026-09-30：泵首帧 payload 未到时显示加载态（原渲染全零 view 观感差）。
-       * lastHtml 置哨兵值，首帧真数据 h.s 必然不同 → 正常重建。⚙ 在 zu-main 之外不受影响。 */
-      lastHtml = "\x00loading";
-      main.innerHTML = '<span class="dim">胶囊统计数据加载中...</span>';
-    }
+    if (state.data) render(state.data);   // 已有共享数据（后 spawn 的实例）直接渲染
+    /* 首帧 payload 未到时不渲染：保持 bar 初始 "…" 占位（track 定位成功后可见），
+     * 泵的 boot-retry/watch/心跳 1~3s 内推送首帧后由 __zusageUpdate→render 覆盖。
+     * （zc 2026-09-30 两轮迭代定稿：曾加"数据加载中"文案，数据秒出后该提示无意义，按用户要求移除） */
 
     var api = {
       pid: pid, slot: slot,
