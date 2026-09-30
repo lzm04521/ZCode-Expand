@@ -1421,7 +1421,12 @@
 
     syncPanel();
     if (state.data) render(state.data);   // 已有共享数据（后 spawn 的实例）直接渲染，不用零值覆盖
-    else render({ session: {}, last_turn: {}, today: {}, context_window: 0 });
+    else {
+      /* zc 优化 2026-09-30：泵首帧 payload 未到时显示加载态（原渲染全零 view 观感差）。
+       * lastHtml 置哨兵值，首帧真数据 h.s 必然不同 → 正常重建。⚙ 在 zu-main 之外不受影响。 */
+      lastHtml = "\x00loading";
+      main.innerHTML = '<span class="dim">数据加载中…</span>';
+    }
 
     var api = {
       pid: pid, slot: slot,

@@ -273,5 +273,8 @@ if (process.versions.electron) {
     app.on('browser-window-created', (_e, win) => attach(win));
     for (const w of BrowserWindow.getAllWindows()) attach(w);
     pumpOnce('boot');
+    // 启动加速：boot 时 overlay 常刚注入、__zusageWantSids 未就绪（协调器 600ms 首 tick 才写），
+    // 若只等 fs.watch/30s 心跳，加载态会空转到心跳——补三次抢首帧（wants 空时 pumpOnce 立即返回，代价可忽略）
+    [1000, 3000, 8000].forEach((ms) => setTimeout(() => pumpOnce('boot-retry'), ms));
   });
 }
