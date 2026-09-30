@@ -225,8 +225,8 @@ if (!isMainThread && parentPort) {
       if (!db) db = openDb();         // db 尚未建库时逐次重试打开（ZCode 首启竞态）
       let recent = [];
       let today = null;
+      const seen = new Set();
       if (db) {
-        const seen = new Set();
         recent = [];
         for (const sid of Array.isArray(m.sids) ? m.sids : []) {
           if (typeof sid !== 'string' || !SID_RE.test(sid) || seen.has(sid)) continue;

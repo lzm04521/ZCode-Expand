@@ -55,6 +55,12 @@ export function shouldQueryRemote(sid, knownSids, cfg, negCache, now) {
   return true;
 }
 
+// ssh 失败退避门（§7：失败 60s 内不再 spawn；Final review I-1 修复——remoteFailAt 曾为死代码）
+export function shouldFetchRemote(sids, failAt, now, backoffMs) {
+  if (!Array.isArray(sids) || !sids.length) return false;
+  return !(typeof failAt === 'number' && now - failAt < backoffMs);
+}
+
 // ---- 内部状态 ----
 let config = { remote: { enabled: false } };
 let worker = null;
@@ -185,10 +191,10 @@ async function pumpOnce(reason) {
     LOG('查询失败(' + reason + '):', String((e && e.message) || e));
     return;
   }
-  // SSH 分流：本地不存在的 sid 且负缓存外（§7）
+  // SSH 分流：本地不存在的 sid 且负缓存外（§7）；ssh 失败 60s 退避期内整体跳过（I-1）
   const unknown = sids.filter((s) => shouldQueryRemote(s, payload.known, config, remoteNegOk, Date.now()));
   let remoteMerged = false;
-  if (unknown.length) {
+  if (unknown.length && shouldFetchRemote(unknown, remoteFailAt, Date.now(), REMOTE_FAIL_BACKOFF_MS)) {
     const r = await fetchRemote(unknown);
     if (r.error) {
       remoteFailAt = Date.now();                 // 失败退避 60s

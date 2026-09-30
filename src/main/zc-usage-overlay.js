@@ -851,7 +851,7 @@
       if (t2.type === "checkbox") {
         state.show[t2.dataset.k] = t2.checked ? 1 : 0;
         persist();
-      } else if (t2.id === "zu-ctxov") {
+      } else if (t2.classList && t2.classList.contains("zu-ctxov")) {
         state.ctxOv = t2.value.trim();
         persist();
       }
