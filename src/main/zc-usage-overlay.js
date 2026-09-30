@@ -180,7 +180,7 @@
        * var(--color-*, 旧值兜底) 引用客户端语义变量（<html> 的 .dark 类翻转整套值，
        * zai-light/zai-dark 特殊主题同样自动适配）；color-mix 处加同值前置声明，
        * 不支持 color-mix 的旧引擎落到实色行不至于透明。 */
-      ".zusage-root{position:fixed;font:14px/1.3 Consolas,'Cascadia Mono',Menlo,'Microsoft YaHei UI','Microsoft YaHei',monospace;" +
+      ".zusage-root{position:fixed;font:15px/1.3 Consolas,'Cascadia Mono',Menlo,'Microsoft YaHei UI','Microsoft YaHei',monospace;" +
       "font-variant-numeric:tabular-nums;color:var(--color-foreground-subtle,#8791a3);" +
       "background:rgba(15,18,25,.86);background:color-mix(in srgb,var(--color-background,#0f1219) 86%,transparent);" +
       "backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);" +
@@ -1348,10 +1348,11 @@
         /* 悬浮在输入框视觉卡片正下方（v58 定位回归）：v55-v57 改贴窗口底，新对话 hero 页
          * 输入框垂直居中时条与输入框彻底脱钩（用户点名回退）。让位带 24px 比条高+顶缝
          * 短 ~7px，条底落进原生底部留白、距窗口底 ~7px —— v54 的"条下 15px 空白"不复发。
-         * 水平仍与卡片左缘对齐 */
+         * 水平与卡片居中对齐（zc 调整 2026-09-30：原左缘对齐，条窄时偏左观感差） */
         var anchor = cardCache || composer;
         var ar = anchor.getBoundingClientRect();
-        var left = Math.round(ar.left);
+        var left = Math.round(ar.left + (ar.width - bar.offsetWidth) / 2);
+        left = Math.max(ar.left, Math.min(left, ar.right - bar.offsetWidth));   // 防溢出：条不越卡片左右缘
         var top = Math.max(8, Math.min(Math.round(ar.bottom + 4), innerHeight - bar.offsetHeight - 2));
         if (left !== lastPos[0] || top !== lastPos[1]) {
           bar.style.left = left + "px"; bar.style.top = top + "px";
