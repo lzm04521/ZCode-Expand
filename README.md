@@ -8,10 +8,11 @@
 
 | 条目 | 说明 |
 | --- | --- |
-| 目标应用 | ZCode Desktop `3.14.4`（构建 `10bbcea5`，2026-09-29）；历史版本补丁集 `3.11.2` / `3.12.2` / `3.12.3` / `3.14.0` / `3.14.1` / `3.14.3` 同库保留 |
-| 补丁集与验证 | `patches/3.14.4/` 已应用于本机安装，apply / verify / 重复 apply / rollback 全循环验证通过（回滚限制见下文「已知限制」） |
+| 目标应用 | ZCode Desktop `3.14.5`（构建 `639500b6`，2026-09-30）；历史版本补丁集 `3.11.2` / `3.12.2` / `3.12.3` / `3.14.0` / `3.14.1` / `3.14.3` / `3.14.4` 同库保留 |
+| 补丁集与验证 | `patches/3.14.5/` 已应用于本机安装，apply / verify / 重复 apply / rollback 全循环验证通过（回滚限制见下文「已知限制」） |
 | 项目列表备注 | 侧边栏项目行可写备注：有备注显备注、无备注回退文件夹名；弹窗打开光标定位到文本末尾（防一次输入覆盖旧内容），「编辑备注」点击后菜单自动收起。备注真身存 `~/.zcode/v2/zcode-expand.json` 明文 JSON（host 进程读写，官方 `setting.json` 保持纯净），升级不丢；localStorage 旧数据一次性自动迁移 |
 | 项目行任务状态点 | 红蓝绿状态机，判定与官方任务行同源：等待确认（权限/输入，`__zcodeSessionActivity.pendingInteractions` 计数 > 0）→ **红**色静态点（官方 `bg-destructive`，优先级最高）；执行中（`__zcodeSessionActivity.phase ∈ prewarming/running`）→ **蓝**色脉冲点（复用官方 `sky` 类）；完成待查看 → **绿**色静态点（官方 `bg-success`），点开任务或下轮开跑才清 |
+| 任务分区头状态点 | 侧栏「任务」分区标题右侧同款三态聚合点（红 > 蓝 > 绿，class 与项目行一致）：分区内容体同一条 `useGlobalTaskList` 查询在侧栏顶层再挂一份全量聚合，复用既有 `isTaskList*` 判定；分区收起时内容体卸载、点点仍实时；「项目」分区头不显示（状态在项目行上）；远程 conversation 工作区任务不参与聚合（本地新建场景为主，影响极小） |
 | 手机远控适配 | 手机网页项目列表显示备注名（屏幕小，不拼接文件夹名），改备注后已连接手机即时刷新；会话页顶部标题显示当前工作区备注，无备注降级文件夹名 |
 | Directory Opus 适配 | Windows 检测到 Opus（`dopusrt`/`dopus`）时，「打开文件夹/资源管理器」各入口（会话右键、标题栏「文件」菜单、文件树右键、聊天文件链接/预览面板）改由 `dopusrt /acmd Go <路径> NEWTAB=tofront` 打开并定位选中；未装 Opus 行为不变，WSL 工作区仍走系统资源管理器 |
 | BigModel 账号管理/快速切换 | OAuth 登录成功后把账号快照（凭据）存进 `zcode-expand.json` 的 `accounts`；模型设置页 BigModel 卡片「解绑」旁多出「**切换账号**」按钮，弹窗点选即换凭据、免重启。切换走 settings 字段状态机 + 官方 `OAuthCredentialRepo`/`logout`，失败按备份回滚；明文令牌刻意不进 `setting.json` 与 zod schema |
@@ -25,7 +26,7 @@
 
 两种使用方式：**clone 本仓库跑 npm script**（开发、适配、日常维护，本节）或**下载 Release 便携包解压即用**（免 clone，见下节）。
 
-运行前提：Windows + ZCode Desktop `3.14.4`（默认安装位置 `%LOCALAPPDATA%\Programs\ZCode`）+ Node ≥ 18。零 npm 依赖，离线可用。
+运行前提：Windows + ZCode Desktop `3.14.5`（默认安装位置 `%LOCALAPPDATA%\Programs\ZCode`）+ Node ≥ 18。零 npm 依赖，离线可用。
 
 ```bash
 # 看当前状态（安装版本、补丁是否就位、备份列表）
