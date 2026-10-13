@@ -8,8 +8,8 @@
 
 | 条目 | 说明 |
 | --- | --- |
-| 目标应用 | ZCode Desktop `3.14.5`（构建 `639500b6`，2026-09-30）；历史版本补丁集 `3.11.2` / `3.12.2` / `3.12.3` / `3.14.0` / `3.14.1` / `3.14.3` / `3.14.4` 同库保留 |
-| 补丁集与验证 | `patches/3.14.5/` 已应用于本机安装，apply / verify / 重复 apply / rollback 全循环验证通过（回滚限制见下文「已知限制」） |
+| 目标应用 | ZCode Desktop `3.15.1`（构建 `f18d6db7`，2026-10-10）；历史版本补丁集 `3.11.2` / `3.12.2` / `3.12.3` / `3.14.0` / `3.14.1` / `3.14.3` / `3.14.4` / `3.14.5` 同库保留 |
+| 补丁集与验证 | `patches/3.15.1/` 已应用于本机安装，apply / verify / 重复 apply / rollback 全循环验证通过（回滚限制见下文「已知限制」） |
 | 项目列表备注 | 侧边栏项目行可写备注：有备注显备注、无备注回退文件夹名；弹窗打开光标定位到文本末尾（防一次输入覆盖旧内容），「编辑备注」点击后菜单自动收起。备注真身存 `~/.zcode/v2/zcode-expand.json` 明文 JSON（host 进程读写，官方 `setting.json` 保持纯净），升级不丢；localStorage 旧数据一次性自动迁移 |
 | 项目行任务状态点 | 红蓝绿状态机，判定与官方任务行同源：等待确认（权限/输入，`__zcodeSessionActivity.pendingInteractions` 计数 > 0）→ **红**色静态点（官方 `bg-destructive`，优先级最高）；执行中（`__zcodeSessionActivity.phase ∈ prewarming/running`）→ **蓝**色脉冲点（复用官方 `sky` 类）；完成待查看 → **绿**色静态点（官方 `bg-success`），点开任务或下轮开跑才清 |
 | 任务分区头状态点 | 侧栏「任务」分区标题右侧同款三态聚合点（红 > 蓝 > 绿，class 与项目行一致）：分区内容体同一条 `useGlobalTaskList` 查询在侧栏顶层再挂一份全量聚合，复用既有 `isTaskList*` 判定；分区收起时内容体卸载、点点仍实时；「项目」分区头不显示（状态在项目行上）；远程 conversation 工作区任务不参与聚合（本地新建场景为主，影响极小） |
@@ -26,7 +26,7 @@
 
 两种使用方式：**clone 本仓库跑 npm script**（开发、适配、日常维护，本节）或**下载 Release 便携包解压即用**（免 clone，见下节）。
 
-运行前提：Windows + ZCode Desktop `3.14.5`（默认安装位置 `%LOCALAPPDATA%\Programs\ZCode`）+ Node ≥ 18。零 npm 依赖，离线可用。
+运行前提：Windows + ZCode Desktop `3.15.1`（默认安装位置 `%LOCALAPPDATA%\Programs\ZCode`）+ Node ≥ 18。零 npm 依赖，离线可用。
 
 ```bash
 # 看当前状态（安装版本、补丁是否就位、备份列表）

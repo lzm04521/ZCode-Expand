@@ -1,0 +1,9 @@
+{
+  "appVersion": "3.15.1",
+  "buildCommitId": "f18d6db7",
+  "buildTime": "2026-10-10T06:47:14.105Z",
+  "electronBuilderVersion": "26.8.1",
+  "patchFormat": 1,
+  "createdAt": "2026-10-12",
+  "notes": "ZCode 3.15.1 补丁集（自 3.14.5 适配：明细见 patches.json summary 的 3.15.1 适配要点段）。锚点取自本机实测的 app.asar；升级 ZCode 后锚点可能失效，届时需按 docs/03-版本适配流程.md 重新定位。"
+}
