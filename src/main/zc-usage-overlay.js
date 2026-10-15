@@ -23,6 +23,9 @@
  * 当前会话（zc 改造）：每 pane 显示自己 data-session-id 指向的会话，池里没有就显示
  *       本会话零值 —— 绝不回退到"别的会话"的数字（v34 原则）；draft/无会话实例显示"—"占位。
  *       mine 通道与 pickCurrent localStorage 启发式已删（3.14.x 客户端 IPC 通道已不存在，R2）。
+ * 只读会话容器（v62.1）：子代理会话 tab 没有输入框，宿主退用 [data-session-id] 会话视图容器
+ *       （容器锚）。该容器下缘即窗口底，条不能按"卡片下缘 +4"放（会被 clamp 成贴底、压住最后
+ *       一条消息的时间戳行并紧贴任务栏）——改为在会话滚动容器上预留底部空带，条浮在带内。
  * 诊断：异常与挂载信息写 window.__zusageDiag（zc 泵不取回，仅排障时可从控制台看）。 */
 (function () {
   if (window.__zusageOverlay) return;
@@ -118,7 +121,12 @@
         var best = {};
         /* 主路径（zc 改造）：pane 容器锚——[data-pane-id] 容器在 DOM 即派发实例，
          * 不依赖视口位置/滚动状态（原版"下半屏可见"启发式在历史会话输入框位于上半屏时
-         * 扫不到 → 条消失，即 R3，本次根治）；pane 内仍取最靠下的输入框做定位锚。 */
+         * 扫不到 → 条消失，即 R3，本次根治）；pane 内仍取最靠下的输入框做定位锚。
+         * v62 容器锚：pane 内无可见输入框但有 [data-session-id] 容器时（draft 态等）以
+         * 该容器为宿主——sid 必须走 sessIdOf（内含 draft 归零），不得裸 getAttribute：
+         * 容器取值是 t??"draft"，草稿态裸取会把假 sid 'draft' 报进 wants 触发无意义查询。
+         * （SidePane 子代理会话 tab 不在任何 [data-pane-id] 内，容器锚主战场在下方
+         * side 兜底路径——3.15.3 实证 data-pane-id 仅主布局分屏 Pane 渲染。） */
         var panes = document.querySelectorAll('[data-pane-id]');
         Array.prototype.forEach.call(panes, function (pane) {
           var k = pane.getAttribute("data-pane-id") || "auto";
@@ -129,17 +137,22 @@
             if (!(r.width > 40 && r.height > 8)) return;   // 尺寸过滤保留（隐藏模板/display:none）
             if (r.top > innerTop) { inner = el; innerTop = r.top; }
           });
-          best[k] = { el: inner, top: innerTop };   // 容器在即派发；el=null 时实例走自带 deepFind 兜底
+          var host = inner, containerMode = false;
+          if (!host) {
+            var root = pane.querySelector('[data-session-id]');
+            if (root) { host = root; containerMode = true; }
+          }
+          best[k] = { el: host, sid: sessIdOf(host), container: containerMode };   // 容器在即派发；el=null 时实例走自带 deepFind 兜底
         });
-        /* SidePane/辅助对话兜底（zc 修复 2026-09-30）：主路径只认 [data-pane-id] 容器，
-         * WorkspaceShell 的 SidePane 视图（辅助对话/子代理会话 tab，渲染层类型
-         * selection-side-chat / subagent-session，带 childSessionId 挂主会话下）没有
-         * pane-id，其输入框会被主路径无视；下方"无 pane 布局回退"又只在全文档无任何
-         * pane 容器时才跑（主对话在，永远不跑）。追加扫描"不在任何 pane 容器内的下半屏
-         * 可见输入框"归独立 "side" 键派发实例（保留下半屏约束排除设置页搜索框等杂项；
-         * sid 走祖先链 data-session-id，识别不到则显示今日+零值占位）。 */
+        /* SidePane/辅助对话兜底（zc 修复 2026-09-30；v62 订正）：3.15.3 起 SidePane tab
+         * 视图（辅助对话/子代理会话，渲染层类型 selection-side-chat/subagent-session）已
+         * 统一传 paneId prop，但 data-pane-id DOM 属性只由主布局分屏 Pane 渲染（全 chunk
+         * 仅 1 处，@3662007）——SidePane tab 不在任何 [data-pane-id] 容器内，归本段管理：
+         * 辅助对话有输入框走正常定位（下半屏约束排除设置页搜索框等杂项）；子代理会话
+         * 只读视图无输入框，退用 tab 内 [data-session-id] 会话视图容器作宿主（容器锚，
+         * sid 走 sessIdOf 内含 draft 归零）。识别不到则显示今日+零值占位。 */
         if (!("side" in best)) {
-          var sideEl = null, sideTop = -Infinity;
+          var sideEl = null, sideTop = -Infinity, sideContainer = false;
           document.querySelectorAll(SEL).forEach(function (el) {
             if (el.closest && el.closest('[data-pane-id]')) return;   // pane 容器内的归主路径
             var r = el.getBoundingClientRect();
@@ -147,7 +160,15 @@
             if (r.top < innerHeight * 0.45) return;
             if (r.top > sideTop) { sideEl = el; sideTop = r.top; }
           });
-          if (sideEl) best["side"] = { el: sideEl, top: sideTop };
+          if (!sideEl) {
+            document.querySelectorAll('[data-session-id]').forEach(function (el) {   // 全 chunk 唯一来源=p$ 会话视图容器（@3644045）
+              if (el.closest && el.closest('[data-pane-id]')) return;   // pane 内的归主路径
+              var r = el.getBoundingClientRect();
+              if (!(r.width > 60 && r.height > 40)) return;             // 隐藏/未激活 tab 的容器不可见
+              if (r.top > sideTop) { sideEl = el; sideTop = r.top; sideContainer = true; }
+            });
+          }
+          if (sideEl) best["side"] = { el: sideEl, sid: sessIdOf(sideEl), container: sideContainer };
         }
         /* 回退：页面无任何 pane 容器（非聊天主布局/未来改版）→ 原启发式
          * （下半屏可见输入框归 "auto" 键），仅覆盖无 pane 布局变体。 */
@@ -156,19 +177,19 @@
             var r = el.getBoundingClientRect();
             if (!(r.width > 40 && r.height > 8 && r.bottom > 0 && r.top < innerHeight)) return;
             if (r.top < innerHeight * 0.45) return;
-            if (!best["auto"] || r.top > best["auto"].top) best["auto"] = { el: el, top: r.top };
+            if (!best["auto"] || r.top > best["auto"].top) best["auto"] = { el: el, top: r.top, sid: sessIdOf(el), container: false };
           });
-          if (!Object.keys(best).length && !instances.length) best["auto"] = { el: null, top: 0 };
+          if (!Object.keys(best).length && !instances.length) best["auto"] = { el: null, sid: "", container: false };
         }
         var keys = Object.keys(best);
         keys.forEach(function (k) {
           var inst = null;
           for (var i = 0; i < instances.length; i++) if (instances[i].pid === k) { inst = instances[i]; break; }
           if (!inst && instances.length < 4) inst = spawnInstance(k, nextSlot++);
-          if (inst) inst.attach(best[k].el, sessIdOf(best[k].el));
+          if (inst) inst.attach(best[k].el, best[k].sid, best[k].container);   // v62：sid 由协调器统一算好（含容器锚宿主），不再现算
         });
         instances.forEach(function (inst) {
-          if (keys.indexOf(inst.pid) < 0) inst.attach(null, "");   // pane 关闭：条随 composer 缺失自藏，实例保留待 pane 重开复用
+          if (keys.indexOf(inst.pid) < 0) inst.attach(null, "", false);   // pane 关闭：条随 composer 缺失自藏，实例保留待 pane 重开复用
         });
         FATAL.insts = instances.map(function (a) { return a.pid + "=" + (a.getSid() ? a.getSid().slice(-8) : "-"); }).join(" | ");
       } catch (e) { FATAL.coordErr = String((e && e.stack) || e); }
@@ -180,14 +201,15 @@
   /* ---------- 实例工厂（v61.1）：一个 pane 一套 条/面板/气泡/tooltip/定位循环。
    * slot 0 保留 #zusage-bar/#zusage-tip 兼容 id（泵热更新按它清理），其余实例仅类名。 */
   function spawnInstance(pid, slot) {
-    var VERSION = "v61";   // v61：修正常聊天误藏（删 coverLock/穿透=被盖，改幽灵子树检测）+ 分屏多实例   // 随提交递增（悬停 ⚙ 面板可见）；未提交的中间迭代不涨号
+    var VERSION = "v62";   // v62：子代理会话口径（D9~D11）——子代理会话条显示自身消耗（④ 文案区分 + today.sub 附加行）   // 随提交递增（悬停 ⚙ 面板可见）；未提交的中间迭代不涨号
     /* ---------- 状态（实例级） ---------- */
     var excOn = false,    // 本 pane 会话处于"上下文超限被拒"状态（render 时按 picked 会话计算）
       excGone = false,    // 用户点 ✕ 关闭了本次气泡；超限解除后自动复位
       nativeCtxVal = 0,   // 本 pane 输入框卡片上读到的原生上下文总量
       lastSub = null,     // 子代理明细面板数据源
       instSid = "",       // 本 pane 当前会话（composer 祖先链 data-session-id）
-      pendingSid = "", wantedEl = null;   // 协调器派发的最新 composer/会话
+      pendingSid = "", wantedEl = null,   // 协调器派发的最新 composer/会话
+      containerMode = false;   // v62：宿主是只读会话容器（非输入框）——cardOf/让位边距/readNativeCtx 全绕过
 
     /* ---------- DOM ---------- */
     /* 样式表挂在 bar 内部而非 head：React 可能清理 head 里的外来 style，
@@ -566,7 +588,10 @@
           '<span class="v">' + fmt(sess.total) + "</span>" +
           cachePct(sess.cache_read, sess.input) +
           '<span class="dim">' + (sess.turns || 0) + L("轮 ", " turns · ") + (sess.requests || 0) + L("次", " req") + "</span>",
-          L("会话累计：当前会话全部请求的 token 消耗", "Session total: tokens of all requests in the current session") + "\n" + ioc(sess.input, sess.output, sess.cache_read, sess.reasoning, sess.cache_write) +
+          /* v62：子代理会话（kind='subagent'，D9）条面数字不变，④ 悬停前缀区分口径来源 */
+          (sess.kind === "subagent"
+            ? L("子代理累计：本子代理全部请求的 token 消耗", "Sub-agent total: tokens of all requests of this sub-agent")
+            : L("会话累计：当前会话全部请求的 token 消耗", "Session total: tokens of all requests in the current session")) + "\n" + ioc(sess.input, sess.output, sess.cache_read, sess.reasoning, sess.cache_write) +
           "\n" + (sess.turns || 0) + L(" 轮 · ", " turns · ") + (sess.requests || 0) + L(" 次请求", " requests") +
           (sess.tool_calls ? L(" · 工具调用 ", " · Tool calls ") + sess.tool_calls : "") +
           (sess.retries ? L(" · 重试 ", " · Retries ") + sess.retries : "") +
@@ -592,7 +617,11 @@
         it(ico('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>') +
           '<span class="v">' + fmt(today.total) + "</span>",
           L("今日合计：今天所有会话的 token 消耗", "Today's total: tokens of all sessions today") + "\n" + ioc(today.input, today.output, today.cache_read, today.reasoning, today.cache_write) +
-          "\n" + (today.requests || 0) + L(" 次请求", " requests") + (today.retries ? L(" · 重试 ", " · Retries ") + today.retries : ""));
+          "\n" + (today.requests || 0) + L(" 次请求", " requests") + (today.retries ? L(" · 重试 ", " · Retries ") + today.retries : "") +
+          /* v62：今日子代理消耗附加行（D11）——主口径不加总，只把缺口显式化 */
+          (today.sub && today.sub.total > 0
+            ? "\n" + L("其中子代理 ", "Sub-agents ") + fmt(today.sub.total) + L("（不含在合计内）", " (not included in the total)")
+            : ""));
       }
       if (state.show.sub && d.sub && (d.sub.total || d.sub.active)) {
         /* v50：悬停 tooltip 只放汇总 + 打开面板的提示；各子代理明细在点击弹出的
@@ -1123,6 +1152,11 @@
           el.style.marginBottom = el.dataset.zuCardPad || "";
           delete el.dataset.zuCardPad;
         });
+        /* v62.1 容器模式底部空带（会话滚动容器 padding-bottom，条浮在带里不压消息） */
+        document.querySelectorAll("[data-zu-bandpad]").forEach(function (el) {
+          el.style.paddingBottom = el.dataset.zuBandPad || "";
+          delete el.dataset.zuBandPad;
+        });
       } catch (e) { }
     }
     try { releasePads(); } catch (e) { }
@@ -1135,6 +1169,49 @@
       try {
         if (cardCache.dataset.zuCardPad === undefined) cardCache.dataset.zuCardPad = cardCache.style.marginBottom || "";
         if (cardCache.style.marginBottom !== CARD_MARGIN) cardCache.style.marginBottom = CARD_MARGIN;
+      } catch (e) { }
+    }
+
+    /* 容器模式（v62.1，子代理只读会话 tab）底部空带让位：只读会话没有输入框卡片可让位，
+     * 原来条按"卡片下缘 +4px"算再被 clamp 到 innerHeight-条高-2 —— 条贴在窗口最底（紧贴
+     * 任务栏），并盖住滚动区末尾的 16px 空档与最后一条消息的时间戳行。改法：给会话滚动容器
+     * 加 padding-bottom 空出一条带，条浮在带内（上下各留 BAND_GAP）。
+     * 带宽刻意 ≤48px：客户端"是否贴底"判定 = contentHeight - viewportHeight - scrollTop ≤ 48
+     * （3.15.3 chunk 内 vQ(metrics, bottomEpsilonPx ?? 48) / u8t），带宽越过 48 会被判成
+     * "用户已上滑"→ 停止自动跟随并弹出"回到底部"按钮，正在运行的子代理就不再自动滚动了。 */
+    var BAND_GAP = 9;        // 带内条与上下边距（内容底 → 条顶 / 条底 → 容器底）
+    var BAND_MAX = 46;       // 空带总高上限（<48 客户端贴底阈值，留 2px 余量）
+    var bandPadEl = null;    // 已加空带的元素（会话滚动容器）
+    function bandOf(bh) { return Math.min((bh || 28) + 2 * BAND_GAP, BAND_MAX); }
+    function restoreBandPad() {
+      try {
+        if (bandPadEl) {
+          bandPadEl.style.paddingBottom = bandPadEl.dataset.zuBandPad || "";
+          delete bandPadEl.dataset.zuBandPad;
+        }
+      } catch (e) { }
+      bandPadEl = null;
+    }
+    /* 找容器内的会话滚动容器并保证空带就位（React 重渲染可能换元素/重置内联样式，逐帧对比补回）。
+     * 3.15.3 锚点：data-v4-timeline-scroll="true"（全 chunk 唯一，见 side 兜底路径同源实证）。 */
+    function ensureBandPad() {
+      if (!containerMode || !composer || !composer.isConnected) { restoreBandPad(); return; }
+      try {
+        if (!bandPadEl || !bandPadEl.isConnected) {
+          var sc = composer.querySelector('[data-v4-timeline-scroll="true"]');
+          if (!sc || sc.getBoundingClientRect().width < 60) return;   // 锚点缺失：不放空带，条按带内位置兜底
+          bandPadEl = sc;
+        }
+        var want = bandOf(bar.offsetHeight) + "px";
+        if (bandPadEl.style.paddingBottom !== want) {
+          if (bandPadEl.dataset.zuBandPad === undefined) bandPadEl.dataset.zuBandPad = bandPadEl.style.paddingBottom || "";
+          /* 贴底时补滚到新的底：只加 padding 不改 scrollTop 的话，空带只有末尾一小段露在视口内
+           * （Chromium 实测：旧 scrollTop 下内容底只上移 16px），条仍会短暂压住最后一行；
+           * 补滚后距底为 0，客户端的贴底判定（≤48px）不受影响。用户已上滑时不碰滚动位置。 */
+          var pinned = bandPadEl.scrollHeight - bandPadEl.clientHeight - bandPadEl.scrollTop <= 2;
+          bandPadEl.style.paddingBottom = want;
+          if (pinned) bandPadEl.scrollTop = bandPadEl.scrollHeight;   // 越界值由浏览器钳到 (scrollHeight - clientHeight)
+        }
       } catch (e) { }
     }
 
@@ -1181,9 +1258,12 @@
 
     function setComposer(el) {
       releasePads();   // 旧卡片的让位边距先还原，新卡片马上重新加
+      restoreBandPad();   // v62.1：旧宿主的底部空带同样先还原（引用清零，避免认死已还原的元素）
       composer = el;
       cardCache = null;
-      if (composer) {
+      /* v62：container 模式 cardCache 恒 null——宿主是会话视图容器而非输入卡片，绝不能
+       * 给它加 margin-bottom，cardOf(容器) 还极易命中带背景/边框的祖先层 */
+      if (composer && !containerMode) {
         var c = cardOf(composer);
         if (c && c !== document.body) cardCache = c;
       }
@@ -1212,7 +1292,7 @@
       }
       refreshWants();   // zc 修复：周期上报 wants（getSid 已含未渲染的 instSid/pendingSid），首帧解锁不依赖 render 时序
       if (!composer && slot === 0) collectDiag();   // 一直找不到输入框的窗口：周期性写环境诊断（everMounted 门防覆盖）
-      if (composer) {
+      if (composer && !containerMode) {   // v62：container 模式绕过卡片缓存/补边距/读原生总量（窗口识别降级 lookupWindow 模型表，[1M] 已覆盖子代理 model_id）
         if (!cardCache || !cardCache.isConnected) {
           var c = cardOf(composer);
           cardCache = c && c !== document.body ? c : null;
@@ -1369,12 +1449,21 @@
         /* 悬浮在输入框视觉卡片正下方（v58 定位回归）：v55-v57 改贴窗口底，新对话 hero 页
          * 输入框垂直居中时条与输入框彻底脱钩（用户点名回退）。让位带 24px 比条高+顶缝
          * 短 ~7px，条底落进原生底部留白、距窗口底 ~7px —— v54 的"条下 15px 空白"不复发。
-         * 水平与卡片居中对齐（zc 调整 2026-09-30：原左缘对齐，条窄时偏左观感差） */
+         * 水平与卡片居中对齐（zc 调整 2026-09-30：原左缘对齐，条窄时偏左观感差）
+         * v62.1 容器模式（子代理只读会话）例外：卡片下缘就是窗口底，原公式必被 clamp 到
+         * 贴底（压住最后一条消息的时间戳行、紧贴任务栏）——改用滚动容器空带内定位。 */
         var anchor = cardCache || composer;
         var ar = anchor.getBoundingClientRect();
         var left = Math.round(ar.left + (ar.width - bar.offsetWidth) / 2);
         left = Math.max(ar.left, Math.min(left, ar.right - bar.offsetWidth));   // 防溢出：条不越卡片左右缘
-        var top = Math.max(8, Math.min(Math.round(ar.bottom + 4), innerHeight - bar.offsetHeight - 2));
+        var top;
+        if (containerMode) {
+          ensureBandPad();
+          top = Math.round(ar.bottom - BAND_GAP - bar.offsetHeight);   // 条浮在空带里：下缘距容器底 BAND_GAP
+        } else {
+          top = Math.round(ar.bottom + 4);
+        }
+        top = Math.max(8, Math.min(top, innerHeight - bar.offsetHeight - 2));
         if (left !== lastPos[0] || top !== lastPos[1]) {
           bar.style.left = left + "px"; bar.style.top = top + "px";
           lastPos = [left, top];
@@ -1387,7 +1476,8 @@
           var br = bar.getBoundingClientRect(), bh = null;
           try { bh = document.elementFromPoint(br.left + br.width / 2, br.top + br.height / 2); } catch (e) { }
           FATAL.mount = {
-            version: VERSION, mode: "below-card", bodyPE: (function () { try { return getComputedStyle(document.body).pointerEvents; } catch (e) { return ""; } })(),
+            version: VERSION, mode: containerMode ? "below-card/container-band" : "below-card", bodyPE: (function () { try { return getComputedStyle(document.body).pointerEvents; } catch (e) { return ""; } })(),
+            bandPad: bandPadEl ? (bandPadEl.style.paddingBottom || "") : null,   // v62.1：容器模式底部空带实测值
             panes: diagPanes(),
             theme: themeDark ? "dark" : "light",
             tip: (function () { return { stats: tipStats, disp: tip.style.display, barRect: (function () { var b = bar.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.width), Math.round(b.height)]; })() }; })(),
@@ -1448,9 +1538,14 @@
 
     var api = {
       pid: pid, slot: slot,
-      attach: function (el, sid) {   // 协调器派发：pane 最靠下的可见输入框 + 其 data-session-id
+      attach: function (el, sid, container) {   // 协调器派发：pane 宿主（输入框或只读会话容器）+ sid + 是否容器模式
         wantedEl = el;
         pendingSid = sid || "";
+        if (containerMode !== !!container) {
+          containerMode = !!container;
+          nativeCtxVal = 0;   // 模式切换：旧宿主读到的原生总量作废
+          if (!containerMode) restoreBandPad();   // v62.1：离开只读容器模式立即撤掉底部空带
+        }
         heavy();   // 立即对账（composer 重建/pane 关闭的最快收敛路径）
       },
       render: render,

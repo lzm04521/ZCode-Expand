@@ -1,6 +1,7 @@
 'use strict';
 /* ZCode token 用量查询体（zc-usage-query.cjs）
- * 口径唯一依据：doc/20260930-设计文档-token用量状态栏重写.md §5 + §13（裁决 D1~D8）。
+ * 口径唯一依据：doc/20260930-设计文档-token用量状态栏重写.md §5 + §13（裁决 D1~D8）
+ * 与 doc/20261015-实施方案-子智能体用量状态栏.md（裁决 D9~D11）。
  * 双模式：worker（泵经 new Worker(src,{eval:true}) 载入，见文件尾 worker 段）+ CLI（node 本文件 <sid...> [remote]）。
  * 全程只读：DatabaseSync readOnly，打开前 existsSync 防新建空库。
  *
@@ -12,6 +13,11 @@
  *            （①② 瞬时样本只取挂轮的主循环完成行，D2）
  *   token 口径（D7 包含制）：input_tokens 已含全量上下文，cache_read 是其中命中缓存的部分；
  *            total = computed_total_tokens（= input + output）；reasoning 含于 output。
+ *
+ * 子代理会话（D9~D11）：有 parent 且自身无主循环行且自身有行 → 判为子代理会话；其 ④/①/② 改用
+ *   Wc（subagent+compact，completed/cancelled）与 SAMPLEc（subagent completed），③ 绕过 turn_usage
+ *   （对子代理是结束后补写，运行中恒 0）按 model_usage 最近 turn_id 聚合；⑦ 子代理汇总放宽含
+ *   compact（D10）；today 追加独立 sub 字段、主数字不加总（D11）。主会话/辅助对话路径不变。
  */
 
 const { DatabaseSync } = require('node:sqlite');
@@ -24,10 +30,23 @@ const W = "query_source IN ('main_turn','target_completion_verification') AND st
 const SAMPLE = "query_source='main_turn' AND turn_id IS NOT NULL AND status='completed'";
 const TURNS = "status IN ('completed','cancelled')";           // ③ 本轮/轮数：turn_usage 官方预聚合（D3）
 const TOOLS_W = "status IN ('completed','error')";             // ⑤ 工具：running 行不计（原版同款）
-const SUB_W = "query_source='subagent'";                       // ⑦ 子代理行标记（D4）
+const SUB_W = "query_source IN ('subagent','compact')";        // ⑦ 子代理行标记（D4；D10 放宽含 compact——6/6 落在子代理会话内，不放宽实测漏 24%）
 const SID_RE = /^[A-Za-z0-9_-]{1,80}$/;                        // sid 白名单（防注入，§7）
 const SUB_ACTIVE_MS = 5 * 60 * 1000;                           // 子代理"运行中"近似窗口（D4：无 running 态）
 const ACTIVE_MS = 30 * 1000;                                   // 会话 active（原版口径）
+
+/* 子代理会话自证（D9）：有 parent + 自身无主循环行 + 自身有行。
+ * 双条件可区分三类有数据会话（主会话无 parent；辅助对话有 parent 但有 main_turn 行；
+ * 子代理会话有 parent 且只有 subagent/compact 行）；第三条防"空辅助对话"（开了没聊，
+ * 无任何 model_usage 行）被误标——对空会话两口径数字同为零，仅防 kind/文案误标。 */
+function isSubagentSession(db, sid, sessRow) {
+  if (!sessRow || !sessRow.parent_id) return false;
+  const hit = db.prepare(
+    "SELECT (SELECT COUNT(*) FROM model_usage WHERE session_id=?) n, " +
+    "(SELECT COUNT(*) FROM model_usage WHERE session_id=? AND query_source IN ('main_turn','target_completion_verification')) m"
+  ).get(sid, sid);
+  return hit.n > 0 && hit.m === 0;
+}
 
 // 上下文窗口降级链后两层（§5.3 + D8）：⚙ 覆盖在 overlay localStorage，本层只管表 + 默认
 const DEFAULT_WINDOW = 128000;
@@ -63,43 +82,66 @@ function openDb() {
 function sessionSnapshot(db, sid) {
   const now = Date.now();
   const s = db.prepare('SELECT title, parent_id, summary_additions a, summary_deletions d, summary_files f FROM session WHERE id=?').get(sid);
+  // D9：子代理会话切换口径（④/①/②/③），today 与 ⑦ 不受影响；导出签名不变（worker/CLI 零改动）
+  const sub = isSubagentSession(db, sid, s);
+  const Wc = sub ? "query_source IN ('subagent','compact') AND status IN ('completed','cancelled')" : W;
+  const SAMPLEc = sub ? "query_source='subagent' AND status='completed'" : SAMPLE;
 
-  // ④ 会话累计：model_usage W 聚合（D1）
+  // ④ 会话累计：model_usage W 聚合（D1；子代理会话按 Wc，D9）
   const u = db.prepare(`SELECT COUNT(*) requests, COALESCE(SUM(input_tokens),0) input,
       COALESCE(SUM(output_tokens),0) output, COALESCE(SUM(reasoning_tokens),0) reasoning,
       COALESCE(SUM(cache_read_input_tokens),0) cache_read, COALESCE(SUM(cache_creation_input_tokens),0) cache_write,
       COALESCE(SUM(computed_total_tokens),0) total, COALESCE(SUM(tool_call_count),0) tool_calls,
       COALESCE(SUM(retry_count),0) retries, MAX(completed_at) lastAt
-    FROM model_usage WHERE session_id=? AND ${W}`).get(sid);
+    FROM model_usage WHERE session_id=? AND ${Wc}`).get(sid);
 
   // ② 上下文样本：最近挂轮主循环完成行（D2 + D7：上下文 = input_tokens 包含制）
   const ctxRow = db.prepare(`SELECT input_tokens, model_id FROM model_usage
-    WHERE session_id=? AND ${SAMPLE} ORDER BY completed_at DESC LIMIT 1`).get(sid);
+    WHERE session_id=? AND ${SAMPLEc} ORDER BY completed_at DESC LIMIT 1`).get(sid);
   // ① 速度样本：另需 first_token_at 非空（D2；生成耗时 = completed-first_token 毫秒，D7 时间戳毫秒实证）
   const spRow = db.prepare(`SELECT output_tokens, completed_at, first_token_at, duration_ms,
       COALESCE(time_to_first_token_ms,0) ttft, model_id FROM model_usage
-    WHERE session_id=? AND ${SAMPLE} AND first_token_at IS NOT NULL ORDER BY completed_at DESC LIMIT 1`).get(sid);
+    WHERE session_id=? AND ${SAMPLEc} AND first_token_at IS NOT NULL ORDER BY completed_at DESC LIMIT 1`).get(sid);
 
   // ② 超窗告警时间戳：error 行单独查（被计入规则排除，§5.2②）
   const excRow = db.prepare(`SELECT MAX(completed_at) m FROM model_usage
     WHERE session_id=? AND status='error' AND context_exceeded=1`).get(sid);
 
-  // ③ 本轮 + 轮数：turn_usage 官方预聚合（D3）
+  // ③ 本轮 + 轮数：turn_usage 官方预聚合（D3）；子代理会话绕过——turn_usage 对子代理是
+  // 结束后补写（运行中查询恒 0，§2.5 实证），改按 model_usage 最近 turn_id 聚合（Wc 口径，D9）
   const turnCount = db.prepare(`SELECT COUNT(*) n FROM turn_usage WHERE session_id=? AND ${TURNS}`).get(sid).n;
-  const t = db.prepare(`SELECT COALESCE(model_request_count,0) requests, COALESCE(model_retry_count,0) retries,
-      COALESCE(tool_call_count,0) tool_calls, COALESCE(tool_error_count,0) tool_errors,
-      COALESCE(input_tokens,0) input, COALESCE(output_tokens,0) output, COALESCE(reasoning_tokens,0) reasoning,
-      COALESCE(cache_read_input_tokens,0) cache_read, COALESCE(cache_creation_input_tokens,0) cache_write,
-      COALESCE(computed_total_tokens,0) total, COALESCE(duration_ms,0) duration_ms,
-      COALESCE(time_to_first_token_ms,0) ttft_ms
-    FROM turn_usage WHERE session_id=? AND ${TURNS} ORDER BY completed_at DESC LIMIT 1`).get(sid);
+  let t = null;
+  if (sub) {
+    const lt = db.prepare(`SELECT turn_id FROM model_usage WHERE session_id=? AND ${Wc} AND turn_id IS NOT NULL
+      ORDER BY completed_at DESC LIMIT 1`).get(sid);
+    if (lt && lt.turn_id != null) {
+      t = db.prepare(`SELECT COUNT(*) requests, COALESCE(SUM(retry_count),0) retries,
+          COALESCE(SUM(tool_call_count),0) tool_calls,
+          COALESCE(SUM(input_tokens),0) input, COALESCE(SUM(output_tokens),0) output,
+          COALESCE(SUM(reasoning_tokens),0) reasoning, COALESCE(SUM(cache_read_input_tokens),0) cache_read,
+          COALESCE(SUM(cache_creation_input_tokens),0) cache_write, COALESCE(SUM(computed_total_tokens),0) total,
+          MAX(completed_at)-MIN(started_at) duration_ms, COALESCE(MAX(time_to_first_token_ms),0) ttft_ms
+        FROM model_usage WHERE session_id=? AND ${Wc} AND turn_id=?`).get(sid, lt.turn_id);
+      // tool_errors 在 Wc 外单算（Wc 排除 error 行；无 error 行为 0）——与 last_turn 结构对齐
+      if (t) t.tool_errors = db.prepare(`SELECT COUNT(*) n FROM model_usage
+        WHERE session_id=? AND turn_id=? AND status='error'`).get(sid, lt.turn_id).n;
+    }
+  } else {
+    t = db.prepare(`SELECT COALESCE(model_request_count,0) requests, COALESCE(model_retry_count,0) retries,
+        COALESCE(tool_call_count,0) tool_calls, COALESCE(tool_error_count,0) tool_errors,
+        COALESCE(input_tokens,0) input, COALESCE(output_tokens,0) output, COALESCE(reasoning_tokens,0) reasoning,
+        COALESCE(cache_read_input_tokens,0) cache_read, COALESCE(cache_creation_input_tokens,0) cache_write,
+        COALESCE(computed_total_tokens,0) total, COALESCE(duration_ms,0) duration_ms,
+        COALESCE(time_to_first_token_ms,0) ttft_ms
+      FROM turn_usage WHERE session_id=? AND ${TURNS} ORDER BY completed_at DESC LIMIT 1`).get(sid);
+  }
 
   // ⑤ 工具：tool_usage 按工具名聚合（TOOLS_W：running 不计）
   const toolRows = db.prepare(`SELECT tool_name name, COUNT(*) count, COALESCE(SUM(duration_ms),0) duration_ms,
       SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) errors
     FROM tool_usage WHERE session_id=? AND ${TOOLS_W} GROUP BY tool_name ORDER BY count DESC, name`).all(sid);
 
-  // ⑦ 子代理：model_usage subagent 行按子代理 sid 聚合（D4；独立统计不入主会话）
+  // ⑦ 子代理：model_usage subagent 行按子代理 sid 聚合（D4；独立统计不入主会话；D10 放宽含 compact）
   const subRows = db.prepare(`SELECT m.session_id sid, s.title title, MAX(m.agent) agent,
       COUNT(*) requests, COALESCE(SUM(m.computed_total_tokens),0) total,
       COALESCE(SUM(m.input_tokens),0) input, COALESCE(SUM(m.output_tokens),0) output,
@@ -117,6 +159,7 @@ function sessionSnapshot(db, sid) {
   return {
     sid,
     title: (s && s.title) || '',
+    kind: sub ? 'subagent' : 'main',   // D9：会话种类（overlay 文案/面板用；旧 overlay 忽略未知字段）
     active: !!lastAt && now - lastAt < ACTIVE_MS,
     parent: (s && s.parent_id) || null,
     // ④
@@ -170,13 +213,20 @@ function sessionSnapshot(db, sid) {
   };
 }
 
-// ⑥ 今日合计：W + 今日 0 点（本地时区）起，跨会话（D1/D7）
+// ⑥ 今日合计：W + 今日 0 点（本地时区）起，跨会话（D1/D7）；主口径不变。
+// D11：追加独立字段 sub（今日子代理行合计，SUB_W 与 ⑦ 同口径——"今日其中子代理"须与 ⑦ 对得上），不并入主数字。
 function todayUsage(db) {
+  const day0 = localDayStartMs();
   const r = db.prepare(`SELECT COUNT(*) requests, COALESCE(SUM(input_tokens),0) input,
       COALESCE(SUM(output_tokens),0) output, COALESCE(SUM(reasoning_tokens),0) reasoning,
       COALESCE(SUM(cache_read_input_tokens),0) cache_read, COALESCE(SUM(cache_creation_input_tokens),0) cache_write,
       COALESCE(SUM(computed_total_tokens),0) total
-    FROM model_usage WHERE ${W} AND started_at >= ?`).get(localDayStartMs());
+    FROM model_usage WHERE ${W} AND started_at >= ?`).get(day0);
+  r.sub = db.prepare(`SELECT COUNT(*) requests, COALESCE(SUM(input_tokens),0) input,
+      COALESCE(SUM(output_tokens),0) output, COALESCE(SUM(reasoning_tokens),0) reasoning,
+      COALESCE(SUM(cache_read_input_tokens),0) cache_read, COALESCE(SUM(cache_creation_input_tokens),0) cache_write,
+      COALESCE(SUM(computed_total_tokens),0) total
+    FROM model_usage WHERE ${SUB_W} AND started_at >= ?`).get(day0);
   return r;
 }
 

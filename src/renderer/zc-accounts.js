@@ -579,6 +579,15 @@
       meta.appendChild(name);
       meta.appendChild(sub);
 
+      // 宿主探活结论（切换前校验写入）：只在明确失效/错配时提示，unknown 不打扰
+      var healthState = account.health && account.health.state;
+      if (healthState === 'invalid' || healthState === 'mismatch') {
+        var health = document.createElement('div');
+        health.textContent = healthState === 'mismatch' ? '凭据与账号不匹配' : '凭据已失效，需重新登录';
+        health.style.cssText = 'font-size:11px;color:' + theme.danger + ';margin-top:2px';
+        meta.appendChild(health);
+      }
+
       var del = button('删除', 'ghost', theme);
       del.style.cssText += ';height:26px;padding:0 10px;font-size:12px;color:' + theme.subtle;
       del.addEventListener('click', function (ev) {
@@ -689,12 +698,16 @@
     async function runAction(isDelete) {
       var account = view.account;
       setBusy(true);
-      setStatus(isDelete ? '正在删除…' : '正在切换…');
+      setStatus(isDelete ? '正在删除…' : '正在校验账号状态并切换…');
       try {
         var result = isDelete ? await requestDelete(account) : await requestSwitch(account);
         if (!result.ok) {
+          // 失败也已写入探活结论（health）：重读列表，返回列表页即可见失效角标
+          var failedSettings = await readSettings();
+          view.accounts = failedSettings && Array.isArray(failedSettings.accounts) ? failedSettings.accounts : [];
           setBusy(false);
           setStatus(result.error || '操作失败', 'error');
+          render();
           return;
         }
         var settings = await readSettings();

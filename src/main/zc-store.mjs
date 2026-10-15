@@ -35,6 +35,11 @@ const ACCOUNT_FORMAT_VERSION = 1;
 // merge 回流到 settings，进而出现在后续任何一次 update 的合并输入里；没有这个
 // 时间窗 + 单调去重，一次无关的设置写入就可能把历史切换请求重复触发一遍。
 const SWITCH_REQUEST_TTL_MS = 2 * 60 * 1000;
+// 切换前只读探活：用快照 access_token 打官方 BigModel userinfo（getCustomerInfo）。
+// 明确失效/错配则中止切换；超时与网络异常一律放行——不得把网络故障判成凭据失效。
+const PROBE_TIMEOUT_MS = 6000;
+// health 合法状态：ok 校验通过 / invalid 明确失效 / mismatch 归属不一致 / unknown 无法判定
+const HEALTH_STATES = new Set(['ok', 'invalid', 'mismatch', 'unknown']);
 
 function logError(op, detail) {
   console.error(`[ZCode-Expand] store ${op}：`, detail);
@@ -95,6 +100,8 @@ function sanitizeAccount(raw) {
   if (!tokenSet) return null;
   const profile = isPlainObject(raw.profile) ? jsonClone(raw.profile) : null;
   if (!profile) return null;
+  // health 走白名单：不显式放行会在每次 store 读写时被 sanitize 抹掉
+  const health = sanitizeHealth(raw.health);
   return {
     id: raw.id,
     provider: typeof raw.provider === 'string' ? raw.provider : PROVIDER,
@@ -105,6 +112,7 @@ function sanitizeAccount(raw) {
     profile,
     savedAt: Number.isFinite(raw.savedAt) ? raw.savedAt : Date.now(),
     formatVersion: Number.isFinite(raw.formatVersion) ? raw.formatVersion : ACCOUNT_FORMAT_VERSION,
+    ...(health ? { health } : {}),
   };
 }
 
@@ -118,6 +126,18 @@ function sanitizeAccounts(value) {
     seen.add(account.id);
     out.push(account);
   }
+  return out;
+}
+
+/** 探活结果净化：状态白名单 + 时间戳；detail 只留文案，绝不落令牌 */
+function sanitizeHealth(value) {
+  if (!isPlainObject(value)) return null;
+  if (!HEALTH_STATES.has(value.state)) return null;
+  const out = {
+    state: value.state,
+    checkedAt: Number.isFinite(value.checkedAt) ? value.checkedAt : Date.now(),
+  };
+  if (typeof value.detail === 'string' && value.detail) out.detail = value.detail.slice(0, 200);
   return out;
 }
 
@@ -277,6 +297,135 @@ function oauthService() {
   return service && service.repo ? service : null;
 }
 
+// ---------------------------------------------------------------------------
+// 切换前只读探活（口径见 doc/20261014-实施方案-账号切换前探活.md §3.2）
+// ---------------------------------------------------------------------------
+
+/** 快照 id 形如 `bigmodel:<user_id>`，取后缀与官方 userinfo 的 customerNumber 比对 */
+function accountUserId(account) {
+  const id = typeof account?.id === 'string' ? account.id : '';
+  const cut = id.indexOf(':');
+  return cut >= 0 ? id.slice(cut + 1) : '';
+}
+
+function firstNonEmptyString(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+/** 与官方 isUnauthorizedError 同口径（host 侧正则 \b401\b|\b403\b|unauthorized|forbidden） */
+function isUnauthorizedText(text) {
+  const s = String(text ?? '').toLowerCase();
+  return /\b401\b|\b403\b/.test(s) || s.includes('unauthorized') || s.includes('forbidden');
+}
+
+/** 超时保护；被丢下的请求仍可能 reject，挂空 catch 防 unhandledRejection */
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label}超时（${ms}ms）`)), ms);
+  });
+  promise.catch(() => {});
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * 用快照凭据做一次只读校验：非 2xx 的 401/403 或响应无 data → invalid；
+ * data 账号 id 与快照不符 → mismatch；超时/网络异常/配置缺失 → unknown（放行）。
+ * 刻意不走 adapter.fetchUserInfo：它把空 body 转成占位 profile，丢掉官方最关键的
+ * 失效信号（Ww 对 BigModel 的 emptyBodyMeansInvalid 口径）。
+ */
+async function probeAccount(account) {
+  const oauth = oauthService();
+  const adapters = oauth && oauth.adapters;
+  if (!oauth || !adapters || typeof adapters.get !== 'function' || !oauth.apiClient) {
+    return { state: 'unknown', reason: 'OAuth 服务尚未就绪' };
+  }
+  const adapter = adapters.get(PROVIDER);
+  if (!adapter || !adapter.config || typeof adapter.config.userinfoUrl !== 'string') {
+    return { state: 'unknown', reason: '探活配置不可用（adapter 缺失）' };
+  }
+  if (adapter.meta && adapter.meta.enabled === false) {
+    return { state: 'unknown', reason: 'provider 已禁用' };
+  }
+  if (typeof oauth.apiClient.request !== 'function') {
+    return { state: 'unknown', reason: '网络客户端不可用' };
+  }
+  const token = typeof account?.tokenSet?.accessToken === 'string' ? account.tokenSet.accessToken.trim() : '';
+  if (!token) return { state: 'invalid', reason: '快照缺少 access_token' };
+
+  let res;
+  try {
+    res = await withTimeout(
+      oauth.apiClient.request(adapter.config.userinfoUrl, {
+        method: 'GET',
+        timeoutMs: PROBE_TIMEOUT_MS,
+        // BigModel 传裸 token（官方 fetchUserInfo 同款），不带 Bearer 前缀
+        headers: { Authorization: token, 'Content-Type': 'application/json' },
+      }),
+      PROBE_TIMEOUT_MS + 500,
+      '账号探活'
+    );
+  } catch (err) {
+    const message = String(err?.message ?? err);
+    if (isUnauthorizedText(message)) return { state: 'invalid', reason: '服务端拒绝该凭据（401/403）' };
+    return { state: 'unknown', reason: `无法确认：${message}` };
+  }
+
+  if (!res || res.ok !== true) {
+    const status = res && typeof res.status === 'number' ? res.status : null;
+    if (status === 401 || status === 403) {
+      return { state: 'invalid', reason: `服务端拒绝该凭据（HTTP ${status}）` };
+    }
+    let text = '';
+    try {
+      text = await res.text();
+    } catch {
+      // 读不出正文不影响判定，按"无法确认"处理
+    }
+    if (isUnauthorizedText(text)) return { state: 'invalid', reason: '服务端拒绝该凭据（401/403）' };
+    return { state: 'unknown', reason: `请求未成功（HTTP ${status ?? '未知'}）` };
+  }
+
+  let body = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  const data = isPlainObject(body) && isPlainObject(body.data) ? body.data : null;
+  if (!data) return { state: 'invalid', reason: '服务端未返回账号资料（凭据可能已失效）' };
+  const returnedId = firstNonEmptyString(data.customerNumber, data.customer_number, data.id);
+  if (!returnedId) return { state: 'unknown', reason: '响应缺少账号标识' };
+  const expected = accountUserId(account);
+  if (expected && returnedId !== expected) {
+    return { state: 'mismatch', reason: `凭据归属不一致（服务端返回 ${returnedId}）` };
+  }
+  return { state: 'ok' };
+}
+
+/** 探活结果写回快照（列表角标据此显示）；失败不阻塞主流程 */
+async function setAccountHealth(id, health) {
+  const clean = sanitizeHealth(health);
+  if (!clean || typeof id !== 'string' || !id) return false;
+  try {
+    await mutateStore((store) => {
+      const list = Array.isArray(store.accounts) ? store.accounts.slice() : [];
+      const index = list.findIndex((it) => it && it.id === id);
+      if (index < 0) return false;
+      list[index] = { ...list[index], health: clean };
+      store.accounts = list;
+      return true;
+    });
+    return true;
+  } catch (err) {
+    logError('写入账号健康状态失败', err?.message ?? err);
+    return false;
+  }
+}
+
 async function setSwitchState(state) {
   const clean = sanitizeSwitchState(state);
   if (!clean) return false;
@@ -374,7 +523,22 @@ async function runSwitch(request) {
     const store = await readStore();
     const account = (store.accounts ?? []).find((it) => it && it.id === request.id);
     if (!account) throw new Error(`账号快照不存在：${request.id}`);
+
+    // 探活必须在 applyAccount 之前：applyAccount 一进来就 logout 旧会话并覆盖凭据槽位，
+    // 失效账号切进去只会被官方 logoutIfCurrentCredentialRequest 踢下线（见方案 §1）。
+    const probe = await probeAccount(account);
+    if (probe.state === 'invalid' || probe.state === 'mismatch') {
+      await setAccountHealth(request.id, {
+        state: probe.state,
+        detail: probe.reason,
+        checkedAt: Date.now(),
+      });
+      throw new Error(`${probe.reason}，已中止切换；请重新登录该账号后再试`);
+    }
+    if (probe.state === 'unknown') logInfo('账号探活无法判定（放行切换）：', probe.reason);
+
     await applyAccount(account);
+    await setAccountHealth(request.id, { state: 'ok', checkedAt: Date.now() });
     await setSwitchState({ id: request.id, state: 'done', issuedAt, finishedAt: Date.now() });
     logInfo('已切换 BigModel 账号：', account.displayName || account.id);
   } catch (err) {
@@ -519,6 +683,19 @@ globalThis.__ZC_XP_STORE__ = {
   /** persistOAuthSession 尾部挂钩：BigModel 登录成功后存快照 */
   saveAccount,
 
+  /** 只读探活（手工验证/排查用）：不写 store、不碰官方凭据 */
+  async probe(id) {
+    try {
+      const store = await readStore();
+      const account = (store.accounts ?? []).find((it) => it && it.id === id);
+      if (!account) return { ok: false, error: `账号快照不存在：${id}` };
+      const result = await probeAccount(account);
+      return { ok: true, id, ...result };
+    } catch (err) {
+      return { ok: false, error: String(err?.message ?? err) };
+    }
+  },
+
   /** 自检信息 */
   async diag() {
     try {
@@ -535,6 +712,7 @@ globalThis.__ZC_XP_STORE__ = {
           savedAt: it.savedAt,
           hasRefreshToken: !!it.tokenSet?.refreshToken,
           hasJwt: !!it.tokenSet?.zcodeJwtToken,
+          health: it.health ?? null,
         })),
         switchState: store.zcAccountSwitch ?? null,
         oauthReady: !!oauth,
