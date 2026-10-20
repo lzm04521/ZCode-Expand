@@ -46,7 +46,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.7.1';
+  var VERSION = '1.8.1';
 
   // v1.4 遗留的 localStorage 存储键：现在只作迁移源（真身在 host 进程的
   // ~/.zcode/v2/zcode-expand.json，由包内补丁的读/写挂钩提供）。migrate() 成功
@@ -321,6 +321,17 @@
       '@media (prefers-reduced-motion: reduce){.zc-xp-running{animation:none;opacity:.85}}',
       // spinner 默认色：官方主题变量 sky-400（固定色板，深浅主题同值），取不到用 #38bdf8
       '.zc-xp-spin{color:var(--color-sky-400,#38bdf8)}',
+      // 分区头状态点存续期间标题不置灰：官方触发按钮默认 text-foreground-subtlest、
+      // hover 才 text-foreground，标题 span 继承按钮 color。用 :has() 命中带状态点
+      // （data-zcxp-conv-* 三个属性仅补丁注入的点持有）的分区头按钮强制前景色；
+      // 点消失后不命中，自动回官方置灰。非 layer 规则可覆盖 Tailwind utilities，
+      // 无需 !important；hover/focus-visible 官方语义本就是前景色，无回归。
+      // 另外 text-foreground-subtlest 类会同时设置 lucide 图标的降透明度滤镜
+      // （--lucide-filter:opacity(--lucide-subtlest-opacity)，深浅主题 .3/.4），
+      // 被 spinner/chevron 等按钮内 svg 继承——只改 color 不够，图标仍被压暗。
+      // 追加官方 .text-foreground 同款变量重置（--lucide-stroke:currentColor;
+      // --lucide-filter:initial），svg 的 filter 回退 none、描边回 currentColor。
+      'button:has(>[data-zcxp-conv-waiting]),button:has(>[data-zcxp-conv-done]),button:has(>[data-zcxp-conv-running]){color:var(--color-foreground,' + CONFIG.fallback.text + ');--lucide-stroke:currentColor;--lucide-filter:initial}',
     ];
     if (CONFIG.runningDot.color) {
       // spinner 用 color（描边随 currentColor），旧版脉冲点用 background
