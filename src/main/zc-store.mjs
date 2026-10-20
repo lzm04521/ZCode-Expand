@@ -40,6 +40,10 @@ const SWITCH_REQUEST_TTL_MS = 2 * 60 * 1000;
 const PROBE_TIMEOUT_MS = 6000;
 // health 合法状态：ok 校验通过 / invalid 明确失效 / mismatch 归属不一致 / unknown 无法判定
 const HEALTH_STATES = new Set(['ok', 'invalid', 'mismatch', 'unknown']);
+// 旧备注迁移失败最多尝试次数；达到后标记 save-failed，避免每次启动反复写
+const PROJECT_NAME_MIGRATION_MAX_ATTEMPTS = 3;
+// 迁移串行守卫：同一进程内重复调用复用同一次执行
+let remarksMigrationPromise = null;
 
 function logError(op, detail) {
   console.error(`[ZCode-Expand] store ${op}：`, detail);
@@ -82,6 +86,29 @@ function sanitizeRemarks(value) {
     if (typeof value[key] === 'string') out[key] = value[key];
   }
   return out;
+}
+
+/** 旧工作区路径与官方项目根目录的统一比较形式。Windows 盘符/UNC 大小写不敏感。 */
+function normalizeProjectPath(value) {
+  let path = String(value ?? '').trim();
+  if (!path) return '';
+  if (/^[A-Za-z]:[\\/]/.test(path) || path.startsWith('\\\\')) {
+    return path.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+  }
+  return path.replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
+/** 迁移状态只保留已知字段；未知/损坏内容不会进入后续写入 */
+function migrationState(value) {
+  const src = isPlainObject(value) ? value : {};
+  return {
+    version: 1,
+    migrated: isPlainObject(src.migrated) ? { ...src.migrated } : {},
+    skipped: isPlainObject(src.skipped) ? { ...src.skipped } : {},
+    attempts: isPlainObject(src.attempts) ? { ...src.attempts } : {},
+    ...(Number.isFinite(src.lastRunAt) ? { lastRunAt: src.lastRunAt } : {}),
+    ...(Number.isFinite(src.doneAt) ? { doneAt: src.doneAt } : {}),
+  };
 }
 
 /** 官方 tokenSet 形态：{accessToken, refreshToken?, zcodeJwtToken?}，accessToken 必需 */
@@ -589,6 +616,134 @@ function enqueueSwitch(request) {
   }
 })();
 
+/**
+ * 一次性把旧 projectRemarks 迁移为官方 projects.name。
+ * 仅处理：根目录唯一匹配 + 官方名仍为默认（nameOverridden=0）的项目；
+ * 官方已命名项目、无匹配、歧义匹配一律跳过。旧 projectRemarks 原样保留。
+ */
+async function migrateProjectRemarks(projectService) {
+  if (remarksMigrationPromise) return remarksMigrationPromise;
+  remarksMigrationPromise = (async () => {
+    if (
+      !projectService ||
+      typeof projectService.readProjects !== 'function' ||
+      typeof projectService.saveProject !== 'function'
+    ) {
+      return { ok: false, error: 'project-service-unavailable' };
+    }
+
+    const current = await readStore();
+    const remarks = current.projectRemarks ?? {};
+    const keys = Object.keys(remarks).filter(
+      (key) => typeof remarks[key] === 'string' && remarks[key].trim()
+    );
+    const state = migrationState(current.projectNameMigration);
+    if (state.doneAt) {
+      return {
+        ok: true,
+        done: true,
+        migrated: Object.keys(state.migrated).length,
+        skipped: Object.keys(state.skipped).length,
+      };
+    }
+    if (keys.length === 0) return { ok: true, noRemarks: true, migrated: 0, skipped: 0 };
+
+    let projects;
+    try {
+      const result = await projectService.readProjects();
+      projects = Array.isArray(result) ? result : Array.isArray(result?.projects) ? result.projects : [];
+    } catch (err) {
+      logError('读取项目列表失败（迁移稍后重试）', err?.message ?? err);
+      return { ok: false, error: 'read-projects-failed' };
+    }
+
+    const rootIndex = new Map();
+    for (const project of projects) {
+      if (!isPlainObject(project) || project.deleted) continue;
+      for (const root of Array.isArray(project.roots) ? project.roots : []) {
+        const path = typeof root === 'string' ? root : root?.rootPath;
+        const normalized = normalizeProjectPath(path);
+        if (!normalized) continue;
+        const list = rootIndex.get(normalized) ?? [];
+        list.push(project);
+        rootIndex.set(normalized, list);
+      }
+    }
+
+    const migrated = { ...state.migrated };
+    const skipped = { ...state.skipped };
+    const attempts = { ...state.attempts };
+
+    for (const key of keys) {
+      if (migrated[key] || skipped[key]) continue;
+      const candidates = rootIndex.get(normalizeProjectPath(key)) ?? [];
+      if (candidates.length === 0) {
+        skipped[key] = 'no-project';
+        continue;
+      }
+      if (candidates.length > 1) {
+        skipped[key] = 'ambiguous';
+        continue;
+      }
+      const project = candidates[0];
+      if (project.nameOverridden) {
+        skipped[key] = 'official-name';
+        continue;
+      }
+      const name = String(remarks[key]).trim();
+      try {
+        const saved = await projectService.saveProject({
+          id: project.id,
+          hostId: project.hostId,
+          name,
+        });
+        migrated[key] = {
+          projectId: project.id,
+          hostId: project.hostId,
+          name: typeof saved?.name === 'string' ? saved.name : name,
+          at: Date.now(),
+        };
+        delete attempts[key];
+        logInfo('旧备注已迁移为官方项目名称：', project.id);
+      } catch (err) {
+        const count = (Number(attempts[key]) || 0) + 1;
+        attempts[key] = count;
+        if (count >= PROJECT_NAME_MIGRATION_MAX_ATTEMPTS) {
+          skipped[key] = 'save-failed';
+          delete attempts[key];
+        }
+        logError('旧备注迁移失败', `${project.id}: ${err?.message ?? err}`);
+      }
+    }
+
+    const pending = keys.filter((key) => !migrated[key] && !skipped[key]);
+    const next = {
+      version: 1,
+      migrated,
+      skipped,
+      attempts,
+      lastRunAt: Date.now(),
+      ...(pending.length === 0 ? { doneAt: Date.now() } : {}),
+    };
+    await mutateStore((store) => {
+      if (JSON.stringify(store.projectNameMigration ?? null) === JSON.stringify(next)) return false;
+      store.projectNameMigration = next;
+      return true;
+    });
+    return {
+      ok: true,
+      done: pending.length === 0,
+      migrated: Object.keys(migrated).length,
+      skipped: Object.keys(skipped).length,
+      pending: pending.length,
+    };
+  })().catch((err) => {
+    logError('旧备注迁移异常', err?.message ?? err);
+    return { ok: false, error: String(err?.message ?? err) };
+  });
+  return remarksMigrationPromise;
+}
+
 globalThis.__ZC_XP_STORE__ = {
   /** 读点挂钩：3.16.2 起只合并账号数据；默认保留历史版本的备注接管 */
   async merge(settings, { includeRemarks = true } = {}) {
@@ -683,6 +838,9 @@ globalThis.__ZC_XP_STORE__ = {
   /** persistOAuthSession 尾部挂钩：BigModel 登录成功后存快照 */
   saveAccount,
 
+  /** 旧 projectRemarks 一次性迁移为官方项目名称（仅默认名，详见函数说明） */
+  migrateProjectRemarks,
+
   /** 只读探活（手工验证/排查用）：不写 store、不碰官方凭据 */
   async probe(id) {
     try {
@@ -701,10 +859,25 @@ globalThis.__ZC_XP_STORE__ = {
     try {
       const store = await readStore();
       const oauth = oauthService();
+      const migration = migrationState(store.projectNameMigration);
       return {
         module: 'zcode-expand/store',
         storeFile: STORE_FILE,
         remarkCount: Object.keys(store.projectRemarks).length,
+        projectNameMigration:
+          migration.doneAt || Object.keys(migration.migrated).length || Object.keys(migration.skipped).length
+            ? {
+                doneAt: migration.doneAt ?? null,
+                migrated: Object.keys(migration.migrated).length,
+                skipped: Object.keys(migration.skipped).length,
+                pending: Math.max(
+                  0,
+                  Object.keys(store.projectRemarks).length -
+                    Object.keys(migration.migrated).length -
+                    Object.keys(migration.skipped).length
+                ),
+              }
+            : null,
         accountCount: (store.accounts ?? []).length,
         accounts: (store.accounts ?? []).map((it) => ({
           id: it.id,

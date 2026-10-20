@@ -1,7 +1,7 @@
 {
   "appVersion": "3.16.2",
   "patchFormat": 1,
-  "summary": "ZCode 3.16.2（build 2469e253），自 3.15.3 适配。保留项目行与任务分区头红等待>蓝运行>绿未读状态点、BigModel 账号管理/切换及只读探活、Token 用量状态栏（含子代理 v62.1）、Directory Opus、禁用 Esc 终止。官方项目名称已落 SQLite projects.name/name_overridden，自定义备注编辑/显示/迁移/远控 label/标题全部退役；旧 projectRemarks 数据保留但不接管、不自动迁移。新版侧栏项目树聚合独立 zcXpTasks（含置顶、不含归档），任务分区用原生完整数组，收起与显示更多不影响；自定义分组/日期头不扩展。settings 服务移入 chunk-EQ7EYADI.js，merge/extract 使用 includeRemarks=false；账号请求 schema 仅放行 zcAccountSwitch/zcAccountDelete，accounts 不入官方设置。OAuth 单实例同时供 agent/RPC，快照在 signed-in 通知后挂入。账号收尾引用及按钮类型经定义/作用域核对，连接字段 update 使用官方 CAS 参数。用量三件套原样保留，DOM 锚静态核对。",
+  "summary": "ZCode 3.16.2（build 2469e253），自 3.15.3 适配。保留项目行与任务分区头红等待>蓝运行>绿未读状态点、BigModel 账号管理/切换及只读探活、Token 用量状态栏（含子代理 v62.1）、Directory Opus、禁用 Esc 终止。官方项目名称已落 SQLite projects.name/name_overridden，自定义备注编辑/显示/迁移/远控 label/标题全部退役；旧 projectRemarks 数据保留但不接管、不自动迁移。新版侧栏项目树聚合独立 zcXpTasks（含置顶、不含归档），任务分区用原生完整数组，收起与显示更多不影响；自定义分组/日期头不扩展。settings 服务移入 chunk-EQ7EYADI.js，merge/extract 使用 includeRemarks=false；账号请求 schema 仅放行 zcAccountSwitch/zcAccountDelete，accounts 不入官方设置。OAuth 单实例同时供 agent/RPC，快照在 signed-in 通知后挂入。旧备注一次性迁移：host 启动后按根目录唯一匹配，只写入官方名仍为默认的项目（nameOverridden=0），已有官方名/无匹配/歧义一律跳过并记录，旧 projectRemarks 保留不删。账号收尾引用及按钮类型经定义/作用域核对，连接字段 update 使用官方 CAS 参数。用量三件套原样保留，DOM 锚静态核对。",
   "addFiles": [
     {
       "from": "src/renderer/zc-remarks.js",
@@ -282,6 +282,13 @@
           "replace": "this.sessionChanges.fire(\"signed-in\");globalThis.__ZC_XP_STORE__&&globalThis.__ZC_XP_STORE__.saveAccount({provider:t,tokenSet:r,profile:n})}async runPendingSessionCompletion(t,r,n){",
           "expect": 1,
           "marker": "saveAccount({provider:t,tokenSet:r,profile:n})}async runPendingSessionCompletion"
+        },
+        {
+          "note": "项目服务就绪后一次性迁移旧备注为官方名称（仅默认名）",
+          "find": "_t=new Pi().register(lm,",
+          "replace": "_t=(globalThis.__ZC_XP_PROJECTS__=Ie,globalThis.__ZC_XP_STORE__&&globalThis.__ZC_XP_STORE__.migrateProjectRemarks(Ie),new Pi()).register(lm,",
+          "expect": 1,
+          "marker": "migrateProjectRemarks(Ie)"
         }
       ]
     },
