@@ -590,13 +590,13 @@ function enqueueSwitch(request) {
 })();
 
 globalThis.__ZC_XP_STORE__ = {
-  /** 读点挂钩：把 store 的扩展键并进 settings；store 缺失时原样返回 */
-  async merge(settings) {
+  /** 读点挂钩：3.16.2 起只合并账号数据；默认保留历史版本的备注接管 */
+  async merge(settings, { includeRemarks = true } = {}) {
     if (!isPlainObject(settings)) return settings;
     try {
       const store = await readStore();
       const out = { ...settings };
-      if (Object.keys(store.projectRemarks).length > 0) {
+      if (includeRemarks && Object.keys(store.projectRemarks).length > 0) {
         out.projectRemarks = { ...store.projectRemarks };
       }
       out.accounts = store.accounts;
@@ -609,17 +609,17 @@ globalThis.__ZC_XP_STORE__ = {
   },
 
   /**
-   * 写点挂钩：patch 里的扩展键落 store，并从落盘内容剔除。
+   * 写点挂钩：patch 里的扩展键落 store，并从落盘内容剔除；includeRemarks=false 时不接管备注。
    * accounts 只由宿主维护（登录快照 / zcAccountDelete），渲染层从不提交它——
    * 官方 update 会把 patch 过一遍 zod（未知键会被剥掉），也会把合并后的设置
    * 写进 setting.json 与日志，明文令牌绝不能走这条路径。
    */
-  async extract(patch, merged) {
+  async extract(patch, merged, { includeRemarks = true } = {}) {
     const out = isPlainObject(merged) ? { ...merged } : merged;
     try {
       if (!isPlainObject(patch) || !isPlainObject(out)) return out;
 
-      const hasRemarks = Object.hasOwn(patch, 'projectRemarks');
+      const hasRemarks = includeRemarks && Object.hasOwn(patch, 'projectRemarks');
       const hasAccounts = Object.hasOwn(patch, 'accounts');
       const deleteRequest = isPlainObject(patch.zcAccountDelete) ? patch.zcAccountDelete : null;
       const switchRequest = isPlainObject(patch.zcAccountSwitch) ? patch.zcAccountSwitch : null;
@@ -659,7 +659,7 @@ globalThis.__ZC_XP_STORE__ = {
         enqueueSwitch({ id: switchRequest.id, issuedAt });
       }
 
-      delete out.projectRemarks;
+      if (includeRemarks) delete out.projectRemarks;
       delete out.accounts;
       delete out.zcAccountSwitch;
       delete out.zcAccountDelete;

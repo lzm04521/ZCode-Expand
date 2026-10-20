@@ -1,0 +1,9 @@
+{
+  "appVersion": "3.16.2",
+  "buildCommitId": "2469e253",
+  "buildTime": "2026-10-19T12:30:51.384Z",
+  "electronBuilderVersion": "26.8.1",
+  "patchFormat": 1,
+  "createdAt": "2026-10-20",
+  "notes": "ZCode 3.16.2 补丁集，自 3.15.3 适配；官方已实现项目备注，退役本扩展备注的编辑、显示、迁移与远控同步。保留状态点、BigModel 账号切换及探活、Token 用量状态栏、Directory Opus 和禁用会话 Esc。锚点取自本机 build 2469e253 原始 app.asar。"
+}
