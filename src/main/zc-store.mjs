@@ -44,6 +44,16 @@ const HEALTH_STATES = new Set(['ok', 'invalid', 'mismatch', 'unknown']);
 const PROJECT_NAME_MIGRATION_MAX_ATTEMPTS = 3;
 // 迁移串行守卫：同一进程内重复调用复用同一次执行
 let remarksMigrationPromise = null;
+// 闲置保活：服务端 session 按不活跃清理（实测闲置 2~5 天即 200 空 body），定期带
+// 快照 token 打一次 getCustomerInfo 维持。取 4h 而非 12h：定时器只活到会话结束，
+// 单次运行不足 12h 时 12h 定时器可能整日不触发（方案 §3.3）。
+const KEEPALIVE_INTERVAL_MS = 4 * 60 * 60 * 1000;
+// 首轮延迟：避开启动高峰，覆盖 host OAuth 实例（__ZC_XP_OAUTH_RPC__）就绪时间
+const KEEPALIVE_START_DELAY_MS = 2 * 60 * 1000;
+// sweep 状态：lastSweepAt 供 diag 展示；sweeping 防手工 sweepNow 与定时轮重叠
+let keepaliveLastSweepAt = 0;
+let keepaliveSweeping = false;
+let keepaliveTimer = null;
 
 function logError(op, detail) {
   console.error(`[ZCode-Expand] store ${op}：`, detail);
@@ -616,6 +626,64 @@ function enqueueSwitch(request) {
   }
 })();
 
+// ---------------------------------------------------------------------------
+// 账号闲置保活（doc/20261020-实施方案-账号快照闲置保活.md）
+// ---------------------------------------------------------------------------
+
+/**
+ * 对全部账号快照做一轮只读探活并回写 health（复用切换前探活的 probeAccount）。
+ * 服务端 session 按不活跃清理，定期碰一次接口续命；判定口径与切换前探活一致。
+ * unknown 不落 store：保住旧 checkedAt，下一轮立即重试——一次网络故障不得吃掉
+ * 一个保活间隔。force=true 忽略间隔门控全量探（sweepNow 手工入口）。
+ */
+async function sweepKeepalive({ force = false } = {}) {
+  if (keepaliveSweeping) return { ok: false, skipped: 'sweep-in-progress' };
+  keepaliveSweeping = true;
+  try {
+    const store = await readStore();
+    const results = [];
+    for (const account of store.accounts ?? []) {
+      if (!account) continue;
+      const checkedAt = account.health?.checkedAt ?? 0;
+      if (!force && Date.now() - checkedAt < KEEPALIVE_INTERVAL_MS) {
+        results.push({ id: account.id, skipped: 'recent' });
+        continue;
+      }
+      const probe = await probeAccount(account);
+      if (probe.state !== 'unknown') {
+        await setAccountHealth(account.id, {
+          state: probe.state,
+          detail: probe.reason,
+          checkedAt: Date.now(),
+        });
+      }
+      results.push({
+        id: account.id,
+        state: probe.state,
+        ...(probe.reason ? { reason: probe.reason } : {}),
+      });
+    }
+    keepaliveLastSweepAt = Date.now();
+    logInfo('账号保活 sweep：', JSON.stringify(results));
+    return { ok: true, at: keepaliveLastSweepAt, results };
+  } catch (err) {
+    logError('账号保活 sweep 失败', err?.message ?? err);
+    return { ok: false, error: String(err?.message ?? err) };
+  } finally {
+    keepaliveSweeping = false;
+  }
+}
+
+// 调度：首轮延迟 2 分钟，此后每 4h 一轮。timer 只活到 host 进程生命周期，
+// unref 不阻止进程退出；sweepKeepalive 自身不抛，外层 catch 兜底防回归。
+const runKeepaliveSweep = () =>
+  sweepKeepalive().catch((err) => logError('账号保活调度异常', err?.message ?? err));
+setTimeout(() => {
+  runKeepaliveSweep();
+  keepaliveTimer = setInterval(runKeepaliveSweep, KEEPALIVE_INTERVAL_MS);
+  keepaliveTimer.unref();
+}, KEEPALIVE_START_DELAY_MS).unref();
+
 /**
  * 一次性把旧 projectRemarks 迁移为官方 projects.name。
  * 仅处理：根目录唯一匹配 + 官方名仍为默认（nameOverridden=0）的项目；
@@ -854,6 +922,11 @@ globalThis.__ZC_XP_STORE__ = {
     }
   },
 
+  /** 立即强制全量保活一轮（忽略 4h 门控）：手工验证/手动保活入口 */
+  async sweepNow() {
+    return sweepKeepalive({ force: true });
+  },
+
   /** 自检信息 */
   async diag() {
     try {
@@ -888,6 +961,11 @@ globalThis.__ZC_XP_STORE__ = {
           health: it.health ?? null,
         })),
         switchState: store.zcAccountSwitch ?? null,
+        keepalive: {
+          intervalMs: KEEPALIVE_INTERVAL_MS,
+          lastSweepAt: keepaliveLastSweepAt || null,
+          timerActive: !!keepaliveTimer,
+        },
         oauthReady: !!oauth,
         oauthHandle: globalThis.__ZC_XP_OAUTH_RPC__ ? 'rpc' : globalThis.__ZC_XP_OAUTH__ ? 'host' : null,
         activeProvider: oauth ? await oauth.repo.getActiveProvider() : null,

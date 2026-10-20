@@ -9,10 +9,11 @@
 | 条目 | 说明 |
 | --- | --- |
 | 目标应用 | ZCode Desktop `3.16.2`（构建 `2469e253`，2026-10-19）；历史版本补丁集 `3.11.2` / `3.12.2` / `3.12.3` / `3.14.0` / `3.14.1` / `3.14.3` / `3.14.4` / `3.14.5` / `3.15.1` / `3.15.3` 同库保留 |
-| 补丁集与验证 | `patches/3.16.2/`：35 处编辑、8 个目标文件、7 个注入文件；完整 dry-run、正式 apply、verify 全部已应用、重复 dry-run 幂等及52项作用域/行为/迁移检查均通过，独立审查无阻塞缺陷；UI 交互、真实账号切换/用量数据及 rollback 尚未验收 |
+| 补丁集与验证 | `patches/3.16.2/`：40 处编辑、8 个目标文件、7 个注入文件；完整 dry-run、正式 apply、verify 全部已应用、重复 dry-run 幂等及52项作用域/行为/迁移检查均通过，独立审查无阻塞缺陷；UI 交互、真实账号切换/用量数据及 rollback 尚未验收 |
 | 项目名称（官方接管 + 旧备注迁移） | 3.16.2 已有官方项目编辑入口，名称存于 SQLite `projects.name` / `name_overridden`。本版本退役自定义备注的编辑、显示、迁移、schema 与读写接管；首次启动由 host 自动把旧 `projectRemarks` 按项目根目录唯一匹配迁移到官方名称，**只补 `name_overridden=0` 的默认名项目**（本机实测 19 条中 2 条可补），官方已命名、无匹配、歧义项跳过并记录；旧 `~/.zcode/v2/zcode-expand.json` / localStorage 备注保留不删、不自动迁移到官方项目（多根目录与旧路径键并非一一对应）。历史版本仍使用原备注补丁 |
-| 项目行任务状态点 | 红蓝绿状态机，判定与官方任务行同源：等待确认（权限/输入，`__zcodeSessionActivity.pendingInteractions` 计数 > 0）→ **红**色静态点（官方 `bg-destructive`，优先级最高）；执行中（`__zcodeSessionActivity.phase ∈ prewarming/running`）→ **蓝**色脉冲点（复用官方 `sky` 类）；完成待查看 → **绿**色静态点（官方 `bg-success`），点开任务或下轮开跑才清 |
-| 任务分区头状态点 | 侧栏「任务」分区标题右侧三态聚合点（红 > 蓝 > 绿，class 与项目行一致）：3.16.2 使用新版项目树中该分区完整任务数组，不受「显示更多」或分区收起影响；项目行聚合含本项目置顶任务、不含归档；「项目」分区头不显示；自定义分组与日期分桶头不增加点 |
+| 项目行任务状态点 | 红绿蓝三态，判定与官方任务行同源，优先级 **等待确认 > 跑完未读 > 执行中**：等待确认（权限/输入，`__zcodeSessionActivity.pendingInteractions` 计数 > 0）→ **红**色静态点（官方 `bg-destructive`，7px）；完成待查看 → **绿**色静态点（官方 `bg-success`，7px），点开任务或下轮开跑才清，同项目有运行中任务时仍优先显示绿点；执行中（`__zcodeSessionActivity.phase ∈ prewarming/running`）→ 官方 loader 图标**蓝色 spinner**（`Us`，14px，`strokeWidth:3`，`text-sky-400`，动画 `animate-spin`，color 覆盖钩子 `zc-xp-spin`） |
+| 任务行左侧状态点 | 与项目行同语义统一（优先级 红 > 绿 > 蓝）：询问 → 红 7px；跑完未读 → 绿 7px；运行中 → 蓝色 spinner（14px / strokeWidth 3 / sky-400，官方灰 spinner 改色加粗）；错误仍红（7px）。两套任务行组件（`task-item` 列表行与 `$gt` 行）同步改 |
+| 任务分区头状态点 | 侧栏「任务」分区标题右侧三态聚合点（红 > 绿 > 蓝 spinner，class 与项目行一致）：3.16.2 使用新版项目树中该分区完整任务数组，不受「显示更多」或分区收起影响；项目行聚合含本项目置顶任务、不含归档；「项目」分区头不显示；自定义分组与日期分桶头不增加点 |
 | 手机远控名称 | 自定义备注 label 同步、推送签名及会话标题替换在 3.16.2 退役，恢复官方数据与标题行为，不再用旧备注覆盖 |
 | Directory Opus 适配 | Windows 检测到 Opus（`dopusrt`/`dopus`）时，「打开文件夹/资源管理器」各入口（会话右键、标题栏「文件」菜单、文件树右键、聊天文件链接/预览面板）改由 `dopusrt /acmd Go <路径> NEWTAB=tofront` 打开并定位选中；未装 Opus 行为不变，WSL 工作区仍走系统资源管理器 |
 | BigModel 账号管理/快速切换 | OAuth 登录成功后把账号快照（凭据）存进 `zcode-expand.json` 的 `accounts`；模型设置页 BigModel 卡片「解绑」旁多出「**切换账号**」按钮，弹窗点选即换凭据、免重启。切换走 settings 字段状态机 + 官方 `OAuthCredentialRepo`/`logout`，失败按备份回滚；**切换前用快照凭据对官方 userinfo 做一次只读探活**（401/403 或响应无 body 即判失效并中止切换、列表标「凭据已失效」；超时与网络异常一律放行，不把断网当失效）；明文令牌刻意不进 `setting.json` 与 zod schema |

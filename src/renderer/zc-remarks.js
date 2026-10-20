@@ -25,13 +25,17 @@
  *       项目下是否有正在执行的任务。与官方任务行 spinner（rbe）同源判定：
  *       任一 task 的 __zcodeSessionActivity.phase 处于 prewarming/running 即
  *       运行中。输入是 WorkspaceSidebarItem 的 taskItems prop。
+ *       渲染为官方 loader 图标蓝色 spinner（14px，strokeWidth 3，sky-400）。
+ *       优先级最低：存在跑完未读时优先显示未读绿点。
  *   isTaskListDone(taskItems) -> boolean
- *       项目行绿点（完成待查看）：任一任务不在运行且带未读标记（unreadAt 为
- *       数字，与官方 hasUnread 同源）。刻意不用官方 taskListHasUnread——它的
- *       清除时机随版本变化（3.12.2 点击项目即清），自判定只跟随任务本身的
- *       未读状态：点开任务查看（官方清 unreadAt）或下一轮开跑才消失。
+ *       项目行绿点（完成待查看，7px）：任一任务不在运行且带未读标记
+ *       （unreadAt 为数字，与官方 hasUnread 同源）。刻意不用官方
+ *       taskListHasUnread——它的清除时机随版本变化（3.12.2 点击项目即清），
+ *       自判定只跟随任务本身的未读状态：点开任务查看（官方清 unreadAt）或
+ *       下一轮开跑才消失。优先级高于运行 spinner：同一项目同时有跑完未读与
+ *       运行中任务时显示未读绿点。
  *   isTaskListWaiting(taskItems) -> boolean
- *       项目行红点（等待确认，优先级最高，覆盖蓝绿点）：任一任务带待处理
+ *       项目行红点（等待确认，7px，优先级最高，覆盖绿点与 spinner）：任一任务带待处理
  *       的权限/输入确认。与官方任务行「等待确认」标签同源判定（Pce）：
  *       __zcodeSessionActivity.pendingInteractions 的 permissionCount +
  *       userInputCount > 0（taskList.permissionTag/userInputTag 都算）。
@@ -42,7 +46,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.6.0';
+  var VERSION = '1.7.1';
 
   // v1.4 遗留的 localStorage 存储键：现在只作迁移源（真身在 host 进程的
   // ~/.zcode/v2/zcode-expand.json，由包内补丁的读/写挂钩提供）。migrate() 成功
@@ -67,18 +71,18 @@
     dialogHint: '留空保存即清除备注。备注写入设置文件，随应用设置一起保存。',
     placeholder: '例如：生产环境',
     maxLength: 80,
-    // 运行中蓝点（zc-xp-running，脉冲动画由本模块注入）。颜色默认走补丁里
-    // 的官方类 bg-sky-500 dark:bg-sky-400（与官方未读点一致）；这里只作
-    // 覆盖钩子，显式给颜色才注入 background 规则。
+    // 运行中蓝色 spinner（zc-xp-spin，官方 loader 图标，14px / strokeWidth 3 /
+    // animate-spin）。颜色由本模块注入 var(--color-sky-400)——产物 CSS 没有
+    // text-sky-400 类；显式配置 color 时注入覆盖规则。
     runningDot: {
       color: '',
     },
-    // 完成待查看绿点（zc-xp-done，静态）。默认走官方类 bg-success。
+    // 完成待查看绿点（zc-xp-done，静态 7px）。默认走官方类 bg-success。
     doneDot: {
       color: '',
     },
-    // 等待确认红点（zc-xp-waiting，静态，优先级最高：覆盖运行蓝点与完成绿
-    // 点）。默认走官方类 bg-destructive（官方 error 指示点同款）。
+    // 等待确认红点（zc-xp-waiting，静态 7px，优先级最高：覆盖未读绿点与运行
+    // spinner）。默认走官方类 bg-destructive（官方 error 指示点同款）。
     waitingDot: {
       color: '',
     },
@@ -257,7 +261,7 @@
     return false;
   }
 
-  // 完成待查看（绿点）：任务不在运行且带未读标记。未读判定与官方 hasUnread
+  // 完成待查看（未读绿点，7px）：任务不在运行且带未读标记。未读判定与官方 hasUnread
   // 同源（typeof unreadAt === 'number'），先看 taskMeta.unreadAt（官方数据层
   // 优先写这里），回退顶层 unreadAt。
   function isTaskListDone(taskItems) {
@@ -280,7 +284,7 @@
 
   // 等待确认（红点）：与官方任务行「等待确认」标签同源判定（Pce）——
   // pendingInteractions.permissionCount + userInputCount > 0，权限确认和
-  // 用户输入都算。优先级最高：补丁里排在运行蓝点与完成绿点之前。
+  // 用户输入都算。优先级最高：补丁里排在最前，其后依次为完成绿点与运行 spinner。
   function isTaskListWaiting(taskItems) {
     if (!CONFIG.enabled) return false;
     if (!Array.isArray(taskItems)) return false;
@@ -298,11 +302,13 @@
     return false;
   }
 
-  // 运行点/完成点/等待点的动画与可选配色覆盖（class zc-xp-running /
-  // zc-xp-done / zc-xp-waiting）。颜色默认走补丁里复用的官方类
-  // （bg-sky-500 dark:bg-sky-400 / bg-success / bg-destructive），
-  // 只有显式配置了颜色才注入 background 规则（非 layer 规则可覆盖
-  // Tailwind utilities）。动画尊重系统"减少动态效果"偏好。
+  // 运行 spinner/完成点/等待点的可选配色覆盖（class zc-xp-spin /
+  // zc-xp-done / zc-xp-waiting；zc-xp-running 为 3.16.2 之前的脉冲点，
+  // 规则保留以兼容旧版本补丁）。绿/红点默认走补丁里复用的官方类
+  // （bg-success / bg-destructive）；spinner 颜色由本模块注入——产物 CSS
+  // 没有 text-sky-400 类（Tailwind JIT 只打包官方用过的类，实测 0 命中），
+  // 必须显式注入 color（svg stroke 走 currentColor）。只有显式配置了颜色
+  // 才注入 done/waiting 的覆盖规则（非 layer 规则可覆盖 Tailwind utilities）。
   function ensureRunningDotStyle() {
     var STYLE_ID = 'zc-xp-running-style';
     // 已存在时先移除，保证 reload() 改配置后能按新参数重建
@@ -313,8 +319,12 @@
       '.zc-xp-running{animation:zc-xp-pulse 2s cubic-bezier(.4,0,.6,1) infinite}',
       '@keyframes zc-xp-pulse{50%{opacity:.35}}',
       '@media (prefers-reduced-motion: reduce){.zc-xp-running{animation:none;opacity:.85}}',
+      // spinner 默认色：官方主题变量 sky-400（固定色板，深浅主题同值），取不到用 #38bdf8
+      '.zc-xp-spin{color:var(--color-sky-400,#38bdf8)}',
     ];
     if (CONFIG.runningDot.color) {
+      // spinner 用 color（描边随 currentColor），旧版脉冲点用 background
+      rules.push('.zc-xp-spin{color:' + CONFIG.runningDot.color + '}');
       rules.push('.zc-xp-running{background:' + CONFIG.runningDot.color + '}');
     }
     if (CONFIG.doneDot && CONFIG.doneDot.color) {
@@ -538,7 +548,7 @@
         enabled: CONFIG.enabled,
         maxLength: CONFIG.maxLength,
         dialogTitle: CONFIG.dialogTitle,
-        runningDotColor: CONFIG.runningDot.color || '(official sky)',
+        runningDotColor: CONFIG.runningDot.color || '(official sky-400 spinner)',
         doneDotColor: CONFIG.doneDot.color || '(official success)',
         waitingDotColor: CONFIG.waitingDot.color || '(official destructive)',
       },
