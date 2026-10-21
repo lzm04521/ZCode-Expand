@@ -5,6 +5,12 @@ setlocal
 where node >nul 2>nul
 if errorlevel 1 (
   echo [error] node not found in PATH. Node.js 18+ is required.
+  pause
   exit /b 1
 )
 node "%~dp0scripts\apply.mjs" %*
+set RC=%errorlevel%
+echo.
+echo [hint] Restart ZCode to take effect. When updating from an older release, run restore.cmd first, then apply.cmd.
+pause
+exit /b %RC%

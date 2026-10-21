@@ -5,6 +5,10 @@ setlocal
 where node >nul 2>nul
 if errorlevel 1 (
   echo [error] node not found in PATH. Node.js 18+ is required.
+  pause
   exit /b 1
 )
 node "%~dp0scripts\restore.mjs" %*
+set RC=%errorlevel%
+pause
+exit /b %RC%
