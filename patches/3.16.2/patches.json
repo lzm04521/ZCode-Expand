@@ -167,32 +167,32 @@
           "marker": "let zcXpList=zcXpTasks??i"
         },
         {
-          "note": "项目行红等待 > 绿未读 > 蓝 spinner（不修改名称）",
+          "note": "项目行红等待 > 蓝未读 > 绿 spinner（不修改名称）",
           "find": "!y&&p.online&&a?(0,$.jsx)(`span`,{\"data-testid\":`virtual-project-unread`,\"data-workspace-unread-indicator\":`true`,role:`img`,\"aria-label\":w.formatMessage({id:`project.hasUnread`}),className:`size-1.5 shrink-0 rounded-full bg-icon-blue`}):null,",
-          "replace": "zcXpWait?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-waiting-indicator\":`true`,className:`size-[7px] shrink-0 rounded-full bg-destructive zc-xp-waiting`}):zcXpDone?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-done-indicator\":`true`,className:`size-[7px] shrink-0 rounded-full bg-success zc-xp-done`}):zcXpBusy?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-running-indicator\":`true`,className:`flex size-3.5 shrink-0 items-center justify-center`,children:(0,$.jsx)(Us,{className:`size-3.5 animate-spin text-sky-400 zc-xp-spin`,strokeWidth:3})}):null,",
+          "replace": "zcXpWait?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-waiting-indicator\":`true`,className:`size-[7px] shrink-0 rounded-full bg-destructive zc-xp-waiting`}):zcXpDone?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-done-indicator\":`true`,className:`size-[7px] shrink-0 rounded-full bg-icon-blue zc-xp-done`}):zcXpBusy?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-running-indicator\":`true`,className:`flex size-3.5 shrink-0 items-center justify-center`,children:(0,$.jsx)(Us,{className:`size-3.5 animate-spin zc-xp-spin`,strokeWidth:3})}):null,",
           "expect": 1,
           "marker": "data-workspace-running-indicator\":`true`,className:`flex size-3.5"
         },
         {
-          "note": "任务分区完整数组聚合并传给容器",
+          "note": "任务/项目分区各聚合一组三态并传给容器（项目口径=projectId!=null 且非归档，与项目行 zcXpTasks 同构）",
           "find": "projectId:null}).filter(e=>e.hostId===`local`&&!p.has(e.hostId));return(0,$.jsx)(Nyt,{",
-          "replace": "projectId:null}).filter(e=>e.hostId===`local`&&!p.has(e.hostId)),zcXpConvWait=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListWaiting(m):!1,zcXpConvBusy=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListBusy(m):!1,zcXpConvDone=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListDone(m):!1;return(0,$.jsx)(Nyt,{zcXpWait:zcXpConvWait,zcXpBusy:zcXpConvBusy,zcXpDone:zcXpConvDone,",
+          "replace": "projectId:null}).filter(e=>e.hostId===`local`&&!p.has(e.hostId)),zcXpConvWait=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListWaiting(m):!1,zcXpConvBusy=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListBusy(m):!1,zcXpConvDone=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListDone(m):!1,zcXpProjList=e.tasks.filter(e=>e.projectId!=null&&!e.archived),zcXpProjWait=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListWaiting(zcXpProjList):!1,zcXpProjBusy=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListBusy(zcXpProjList):!1,zcXpProjDone=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListDone(zcXpProjList):!1;return(0,$.jsx)(Nyt,{zcXpWait:zcXpConvWait,zcXpBusy:zcXpConvBusy,zcXpDone:zcXpConvDone,zcXpProjWait:zcXpProjWait,zcXpProjBusy:zcXpProjBusy,zcXpProjDone:zcXpProjDone,",
           "expect": 1,
           "marker": "zcXpConvWait=window.__ZC_EXPAND__"
         },
         {
           "note": "分区容器接收三态参数",
           "find": "function Nyt({projects:e,tasks:t,onAdd:n,onCreate:r,hasExpandedProjects:i,canToggleProjects:a,onToggleProjects:o}){",
-          "replace": "function Nyt({projects:e,tasks:t,onAdd:n,onCreate:r,hasExpandedProjects:i,canToggleProjects:a,onToggleProjects:o,zcXpWait:zcXpW=!1,zcXpBusy:zcXpB=!1,zcXpDone:zcXpD=!1}){",
+          "replace": "function Nyt({projects:e,tasks:t,onAdd:n,onCreate:r,hasExpandedProjects:i,canToggleProjects:a,onToggleProjects:o,zcXpWait:zcXpW=!1,zcXpBusy:zcXpB=!1,zcXpDone:zcXpD=!1,zcXpProjWait:zcXpProjW=!1,zcXpProjBusy:zcXpProjB=!1,zcXpProjDone:zcXpProjD=!1}){",
           "expect": 1,
           "marker": "onToggleProjects:o,zcXpWait:zcXpW"
         },
         {
-          "note": "只在任务分区头传三态，项目分区不显示",
+          "note": "分区头三态分流：任务侧=conversation 三态，项目侧=项目任务聚合三态",
           "find": "testId:f?`project-section`:`conversation-section`,open:f?l.projectsExpanded:l.conversationsExpanded,",
-          "replace": "testId:f?`project-section`:`conversation-section`,open:f?l.projectsExpanded:l.conversationsExpanded,zcXpWait:!f&&zcXpW,zcXpBusy:!f&&zcXpB,zcXpDone:!f&&zcXpD,",
+          "replace": "testId:f?`project-section`:`conversation-section`,open:f?l.projectsExpanded:l.conversationsExpanded,zcXpWait:f?zcXpProjW:zcXpW,zcXpBusy:f?zcXpProjB:zcXpB,zcXpDone:f?zcXpProjD:zcXpD,",
           "expect": 1,
-          "marker": "zcXpWait:!f&&zcXpW"
+          "marker": "zcXpWait:f?zcXpProjW:zcXpW"
         },
         {
           "note": "分区头可选三态 props",
@@ -202,9 +202,9 @@
           "marker": "zcXpSecW=!1"
         },
         {
-          "note": "任务标题旁同款三态：红等待 > 绿未读 > 蓝 spinner，收起时仍存活",
+          "note": "任务标题旁同款三态：红等待 > 蓝未读 > 绿 spinner，收起时仍存活",
           "find": "children:[(0,$.jsx)(`span`,{className:`min-w-0 truncate`,children:e}),t?(0,$.jsx)(Qo,{\"aria-hidden\":`true`,\"data-purpose-section-chevron\":`expanded`,",
-          "replace": "children:[(0,$.jsx)(`span`,{className:`min-w-0 truncate`,children:e}),zcXpSecW?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-zcxp-conv-waiting\":`true`,className:`size-[7px] shrink-0 rounded-full bg-destructive zc-xp-waiting`}):zcXpSecD?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-zcxp-conv-done\":`true`,className:`size-[7px] shrink-0 rounded-full bg-success zc-xp-done`}):zcXpSecB?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-zcxp-conv-running\":`true`,className:`flex size-3.5 shrink-0 items-center justify-center`,children:(0,$.jsx)(Us,{className:`size-3.5 animate-spin text-sky-400 zc-xp-spin`,strokeWidth:3})}):null,t?(0,$.jsx)(Qo,{\"aria-hidden\":`true`,\"data-purpose-section-chevron\":`expanded`,",
+          "replace": "children:[(0,$.jsx)(`span`,{className:`min-w-0 truncate`,children:e}),zcXpSecW?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-zcxp-conv-waiting\":`true`,className:`size-[7px] shrink-0 rounded-full bg-destructive zc-xp-waiting`}):zcXpSecD?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-zcxp-conv-done\":`true`,className:`size-[7px] shrink-0 rounded-full bg-icon-blue zc-xp-done`}):zcXpSecB?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-zcxp-conv-running\":`true`,className:`flex size-3.5 shrink-0 items-center justify-center`,children:(0,$.jsx)(Us,{className:`size-3.5 animate-spin zc-xp-spin`,strokeWidth:3})}):null,t?(0,$.jsx)(Qo,{\"aria-hidden\":`true`,\"data-purpose-section-chevron\":`expanded`,",
           "expect": 1,
           "marker": "data-zcxp-conv-running\":`true`,className:`flex size-3.5"
         },
@@ -230,23 +230,23 @@
           "marker": "zcXpStatus===`loading`&&`animate-spin`"
         },
         {
-          "note": "任务行左侧：询问红 > 未读绿 > 运行蓝 spinner（均 7px 点 / 14px spinner）",
+          "note": "任务行左侧：询问红 > 未读蓝 > 运行绿 spinner（均 7px 点 / 14px spinner）",
           "find": "H===`error`?(0,$.jsx)(`span`,{\"data-error-indicator\":`true`,className:`h-1.5 w-1.5 rounded-full bg-destructive`}):H===`unread`?(0,$.jsx)(`span`,{\"data-unread-indicator\":`true`,className:`size-[7px] rounded-full bg-icon-blue`}):H===`loading`?(0,$.jsx)(Us,{className:`size-4 text-foreground-subtle`}):null",
-          "replace": "zcXpStatus===`error`?(0,$.jsx)(`span`,{\"data-error-indicator\":`true`,className:`size-[7px] rounded-full bg-destructive`}):zcXpStatus===`waiting`?(0,$.jsx)(`span`,{\"data-waiting-indicator\":`true`,className:`size-[7px] rounded-full bg-destructive`}):zcXpStatus===`unread`?(0,$.jsx)(`span`,{\"data-unread-indicator\":`true`,className:`size-[7px] rounded-full bg-success`}):zcXpStatus===`loading`?(0,$.jsx)(Us,{className:`size-3.5 text-sky-400 zc-xp-spin`,strokeWidth:3}):null",
+          "replace": "zcXpStatus===`error`?(0,$.jsx)(`span`,{\"data-error-indicator\":`true`,className:`size-[7px] rounded-full bg-destructive`}):zcXpStatus===`waiting`?(0,$.jsx)(`span`,{\"data-waiting-indicator\":`true`,className:`size-[7px] rounded-full bg-destructive`}):zcXpStatus===`unread`?(0,$.jsx)(`span`,{\"data-unread-indicator\":`true`,className:`size-[7px] rounded-full bg-icon-blue`}):zcXpStatus===`loading`?(0,$.jsx)(Us,{className:`size-3.5 zc-xp-spin`,strokeWidth:3}):null",
           "expect": 1,
           "marker": "data-waiting-indicator\":`true`,className:`size-[7px] rounded-full bg-destructive"
         },
         {
-          "note": "另一任务行组件叠加询问优先级并改未读绿",
+          "note": "另一任务行组件叠加询问优先级，未读恢复官方蓝原类",
           "find": "B=M===`error`?`bg-destructive`:M===`unread`?`bg-sky-500 dark:bg-sky-400`:null,ee=!y,",
-          "replace": "B=M===`error`?`bg-destructive`:M===`unread`?`bg-success`:null,zcXpStatus=O?`waiting`:M,ee=!y,",
+          "replace": "B=M===`error`?`bg-destructive`:M===`unread`?`bg-sky-500 dark:bg-sky-400`:null,zcXpStatus=O?`waiting`:M,ee=!y,",
           "expect": 1,
           "marker": "zcXpStatus=O?`waiting`:M"
         },
         {
-          "note": "另一任务行左侧：询问红 > 运行蓝 spinner > 错误/未读点（点 7px）",
+          "note": "另一任务行左侧：询问红 > 运行绿 spinner > 错误/未读点（点 7px）",
           "find": "M===`loading`?(0,$.jsx)(Us,{className:`size-3.5 animate-spin text-foreground-subtle`}):B?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,className:`flex size-4 shrink-0 items-center justify-center`,children:(0,$.jsx)(`span`,{className:Z(`size-1.5 rounded-full`,B)})}):null",
-          "replace": "zcXpStatus===`waiting`?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,className:`flex size-4 shrink-0 items-center justify-center`,children:(0,$.jsx)(`span`,{className:`size-[7px] rounded-full bg-destructive`})}):zcXpStatus===`loading`?(0,$.jsx)(Us,{className:`size-3.5 animate-spin text-sky-400 zc-xp-spin`,strokeWidth:3}):B?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,className:`flex size-4 shrink-0 items-center justify-center`,children:(0,$.jsx)(`span`,{className:Z(`size-[7px] rounded-full`,B)})}):null",
+          "replace": "zcXpStatus===`waiting`?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,className:`flex size-4 shrink-0 items-center justify-center`,children:(0,$.jsx)(`span`,{className:`size-[7px] rounded-full bg-destructive`})}):zcXpStatus===`loading`?(0,$.jsx)(Us,{className:`size-3.5 animate-spin zc-xp-spin`,strokeWidth:3}):B?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,className:`flex size-4 shrink-0 items-center justify-center`,children:(0,$.jsx)(`span`,{className:Z(`size-[7px] rounded-full`,B)})}):null",
           "expect": 2,
           "marker": "zcXpStatus===`waiting`?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,className:`flex size-4"
         }
