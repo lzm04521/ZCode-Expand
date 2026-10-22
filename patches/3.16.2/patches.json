@@ -216,11 +216,11 @@
           "marker": "!1&&e.key===`Escape`&&de.current"
         },
         {
-          "note": "任务行状态叠加询问优先级（询问 > 未读 > 运行）",
+          "note": "任务行状态叠加询问与运行优先级（询问 > 运行 > 未读）",
           "find": "H=(0,Q.useMemo)(()=>Grt(n,F),[n,F]),U=ji(n),",
-          "replace": "H=(0,Q.useMemo)(()=>Grt(n,F),[n,F]),zcXpStatus=L?`waiting`:H,U=ji(n),",
+          "replace": "H=(0,Q.useMemo)(()=>Grt(n,F),[n,F]),zcXpStatus=L?`waiting`:(F?.phase===`prewarming`||F?.phase===`running`)?`loading`:H,U=ji(n),",
           "expect": 1,
-          "marker": "zcXpStatus=L?`waiting`:H"
+          "marker": "zcXpStatus=L?`waiting`:(F?.phase"
         },
         {
           "note": "任务行左侧只有 spinner 状态旋转",
@@ -230,18 +230,18 @@
           "marker": "zcXpStatus===`loading`&&`animate-spin`"
         },
         {
-          "note": "任务行左侧：询问红 > 未读蓝 > 运行绿 spinner（均 7px 点 / 14px spinner）",
+          "note": "任务行左侧：询问红 > 运行绿 spinner > 未读蓝（均 7px 点 / 14px spinner）",
           "find": "H===`error`?(0,$.jsx)(`span`,{\"data-error-indicator\":`true`,className:`h-1.5 w-1.5 rounded-full bg-destructive`}):H===`unread`?(0,$.jsx)(`span`,{\"data-unread-indicator\":`true`,className:`size-[7px] rounded-full bg-icon-blue`}):H===`loading`?(0,$.jsx)(Us,{className:`size-4 text-foreground-subtle`}):null",
           "replace": "zcXpStatus===`error`?(0,$.jsx)(`span`,{\"data-error-indicator\":`true`,className:`size-[7px] rounded-full bg-destructive`}):zcXpStatus===`waiting`?(0,$.jsx)(`span`,{\"data-waiting-indicator\":`true`,className:`size-[7px] rounded-full bg-destructive`}):zcXpStatus===`unread`?(0,$.jsx)(`span`,{\"data-unread-indicator\":`true`,className:`size-[7px] rounded-full bg-icon-blue`}):zcXpStatus===`loading`?(0,$.jsx)(Us,{className:`size-3.5 zc-xp-spin`,strokeWidth:3}):null",
           "expect": 1,
           "marker": "data-waiting-indicator\":`true`,className:`size-[7px] rounded-full bg-destructive"
         },
         {
-          "note": "另一任务行组件叠加询问优先级，未读恢复官方蓝原类",
+          "note": "另一任务行组件叠加询问与运行优先级，未读恢复官方蓝原类",
           "find": "B=M===`error`?`bg-destructive`:M===`unread`?`bg-sky-500 dark:bg-sky-400`:null,ee=!y,",
-          "replace": "B=M===`error`?`bg-destructive`:M===`unread`?`bg-sky-500 dark:bg-sky-400`:null,zcXpStatus=O?`waiting`:M,ee=!y,",
+          "replace": "B=M===`error`?`bg-destructive`:M===`unread`?`bg-sky-500 dark:bg-sky-400`:null,zcXpStatus=O?`waiting`:(E?.phase===`prewarming`||E?.phase===`running`)?`loading`:M,ee=!y,",
           "expect": 1,
-          "marker": "zcXpStatus=O?`waiting`:M"
+          "marker": "zcXpStatus=O?`waiting`:(E?.phase"
         },
         {
           "note": "另一任务行左侧：询问红 > 运行绿 spinner > 错误/未读点（点 7px）",
