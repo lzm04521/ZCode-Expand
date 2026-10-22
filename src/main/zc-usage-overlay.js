@@ -114,6 +114,14 @@
       }
       return "";
     }
+    /* 弹窗内控件判定（v63）：Radix Portal 弹层（Dialog 等）挂 body 直下、不在 pane 容器内，
+     * 其中的可编辑控件会落进 side 兜底被误认成 SidePane 输入框——添加/编辑模型弹窗
+     * "推理参数映射"textarea 实证（doc/20261022-bug报告），零值胶囊浮在弹窗取消/保存上方。
+     * 命中客户端 dialog 体系特征即排除；刻意不用裸 [role=dialog]：chat 通知面板是
+     * aria-modal=false 的 role=dialog（styles-n-UNIiNg @4996684），属正常聊天 UI 不得排除。 */
+    function inDialogHost(el) {
+      return !!(el.closest && el.closest('[data-slot="dialog-content"],[data-slot="dialog-overlay"],[aria-modal="true"]'));
+    }
     var SEL = 'textarea, [contenteditable="true"], [role="textbox"], .ProseMirror, .ql-editor';
     function tick() {
       if (stale()) return;
@@ -155,6 +163,7 @@
           var sideEl = null, sideTop = -Infinity, sideContainer = false;
           document.querySelectorAll(SEL).forEach(function (el) {
             if (el.closest && el.closest('[data-pane-id]')) return;   // pane 容器内的归主路径
+            if (inDialogHost(el)) return;   // 弹窗内控件不是聊天输入框（v63）
             var r = el.getBoundingClientRect();
             if (!(r.width > 40 && r.height > 8 && r.bottom > 0 && r.top < innerHeight)) return;
             if (r.top < innerHeight * 0.45) return;
@@ -163,6 +172,7 @@
           if (!sideEl) {
             document.querySelectorAll('[data-session-id]').forEach(function (el) {   // 全 chunk 唯一来源=p$ 会话视图容器（@3644045）
               if (el.closest && el.closest('[data-pane-id]')) return;   // pane 内的归主路径
+              if (inDialogHost(el)) return;   // 防御：弹窗内容器同样不算会话视图宿主（v63）
               var r = el.getBoundingClientRect();
               if (!(r.width > 60 && r.height > 40)) return;             // 隐藏/未激活 tab 的容器不可见
               if (r.top > sideTop) { sideEl = el; sideTop = r.top; sideContainer = true; }
@@ -201,7 +211,7 @@
   /* ---------- 实例工厂（v61.1）：一个 pane 一套 条/面板/气泡/tooltip/定位循环。
    * slot 0 保留 #zusage-bar/#zusage-tip 兼容 id（泵热更新按它清理），其余实例仅类名。 */
   function spawnInstance(pid, slot) {
-    var VERSION = "v62";   // v62：子代理会话口径（D9~D11）——子代理会话条显示自身消耗（④ 文案区分 + today.sub 附加行）   // 随提交递增（悬停 ⚙ 面板可见）；未提交的中间迭代不涨号
+    var VERSION = "v63";   // v63：side 兜底排除弹窗内控件（模型维护弹窗 JSON 编辑区误挂，doc/20261022）   // 随提交递增（悬停 ⚙ 面板可见）；未提交的中间迭代不涨号
     /* ---------- 状态（实例级） ---------- */
     var excOn = false,    // 本 pane 会话处于"上下文超限被拒"状态（render 时按 picked 会话计算）
       excGone = false,    // 用户点 ✕ 关闭了本次气泡；超限解除后自动复位
