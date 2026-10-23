@@ -3,7 +3,7 @@
 [![Release](https://img.shields.io/github/v/tag/lzm04521/ZCode-Expand?label=release&sort=semver)](https://github.com/lzm04521/ZCode-Expand/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
-![ZCode](https://img.shields.io/badge/ZCode-3.16.2-8A2BE2)
+![ZCode](https://img.shields.io/badge/ZCode-3.16.3-8A2BE2)
 
 按 **ZCode 版本** 维护的桌面端自定义扩展仓库。核心是把"改 ZCode 安装包"这件事变成**可复现、可校验、可回滚**的补丁集，而不是手工改一次就丢：零 npm 依赖、纯 Node、离线可用，写盘前过语法门禁 + 逐条自检，全程自动备份。
 
@@ -12,7 +12,7 @@
 
 ## 当前适配
 
-**ZCode Desktop `3.16.2`**（构建 `2469e253`，2026-10-19）——`patches/3.16.2/`：40 处编辑、8 个目标文件、7 个注入文件，dry-run / apply / verify 全链路通过。历史版本补丁集同库保留：`3.11.2` / `3.12.2` / `3.12.3` / `3.14.0` / `3.14.1` / `3.14.3` / `3.14.4` / `3.14.5` / `3.15.1` / `3.15.3`。
+**ZCode Desktop `3.16.3`**（构建 `a82dd43e`，2026-10-23）——`patches/3.16.3/`：40 处编辑、8 个目标文件、7 个注入文件，自 `3.16.2` 平移适配（功能集不变），dry-run / apply / verify 全链路通过。历史版本补丁集同库保留：`3.11.2` / `3.12.2` / `3.12.3` / `3.14.0` / `3.14.1` / `3.14.3` / `3.14.4` / `3.14.5` / `3.15.1` / `3.15.3` / `3.16.2`。
 
 ## ✨ 功能
 
@@ -48,7 +48,7 @@ Windows 检测到 Opus（`dopusrt`/`dopus`）时，「打开文件夹/资源管�
 
 ## 🚀 快速开始
 
-运行前提：**Windows + ZCode Desktop 3.16.2**（默认安装位置 `%LOCALAPPDATA%\Programs\ZCode`）+ **Node ≥ 18**。
+运行前提：**Windows + ZCode Desktop 3.16.3**（默认安装位置 `%LOCALAPPDATA%\Programs\ZCode`）+ **Node ≥ 18**。
 
 ### 方式一：clone 本仓库（开发、适配、日常维护）
 
