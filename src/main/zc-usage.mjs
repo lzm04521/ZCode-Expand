@@ -231,6 +231,8 @@ async function pumpOnce(reason) {
     remoteError = '';
   }
   payload.remote_error = remoteError;
+  // v64（上游 v62 issue #14）：overlay 据此区分"没配 remote 段"与"配了但没查到"，零值提示走不同指引
+  payload.remote_enabled = !!(config.remote && config.remote.enabled);
   // 远程会话聚焦期间按 poll_ms 轮询（本地 fs.watch 收不到远端写入，§4.1）
   if (remoteMerged && config.remote.poll_ms >= 1000) {
     if (!remoteTimer) remoteTimer = setInterval(() => pumpOnce('remote-poll'), config.remote.poll_ms);

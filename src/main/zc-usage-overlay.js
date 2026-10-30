@@ -93,6 +93,15 @@
     } catch (e) { }
   }
 
+  /* 弹窗内控件判定（v63；v64 提升到外层供协调器与实例工厂共用）：Radix Portal 弹层（Dialog 等）
+   * 挂 body 直下、不在 pane 容器内，其中的可编辑控件会落进 side 兜底/实例 deepFind 兜底被误认成
+   * 输入框——添加/编辑模型弹窗"推理参数映射"textarea 实证（doc/20261022-bug报告），零值胶囊浮在
+   * 弹窗取消/保存上方。命中客户端 dialog 体系特征即排除；刻意不用裸 [role=dialog]：chat 通知面板
+   * 是 aria-modal=false 的 role=dialog（styles-n-UNIiNg @4996684），属正常聊天 UI 不得排除。 */
+  function inDialogHost(el) {
+    return !!(el.closest && el.closest('[data-slot="dialog-content"],[data-slot="dialog-overlay"],[aria-modal="true"]'));
+  }
+
   setTimeout(function () {
     try { coordinator(); } catch (e) {
       FATAL.fatal = String((e && e.stack) || e);
@@ -113,14 +122,6 @@
         }
       }
       return "";
-    }
-    /* 弹窗内控件判定（v63）：Radix Portal 弹层（Dialog 等）挂 body 直下、不在 pane 容器内，
-     * 其中的可编辑控件会落进 side 兜底被误认成 SidePane 输入框——添加/编辑模型弹窗
-     * "推理参数映射"textarea 实证（doc/20261022-bug报告），零值胶囊浮在弹窗取消/保存上方。
-     * 命中客户端 dialog 体系特征即排除；刻意不用裸 [role=dialog]：chat 通知面板是
-     * aria-modal=false 的 role=dialog（styles-n-UNIiNg @4996684），属正常聊天 UI 不得排除。 */
-    function inDialogHost(el) {
-      return !!(el.closest && el.closest('[data-slot="dialog-content"],[data-slot="dialog-overlay"],[aria-modal="true"]'));
     }
     var SEL = 'textarea, [contenteditable="true"], [role="textbox"], .ProseMirror, .ql-editor';
     function tick() {
@@ -211,7 +212,7 @@
   /* ---------- 实例工厂（v61.1）：一个 pane 一套 条/面板/气泡/tooltip/定位循环。
    * slot 0 保留 #zusage-bar/#zusage-tip 兼容 id（泵热更新按它清理），其余实例仅类名。 */
   function spawnInstance(pid, slot) {
-    var VERSION = "v63";   // v63：side 兜底排除弹窗内控件（模型维护弹窗 JSON 编辑区误挂，doc/20261022）   // 随提交递增（悬停 ⚙ 面板可见）；未提交的中间迭代不涨号
+    var VERSION = "v64";   // v64：零值会话来源提示（移植上游 v62 issue #14/#10）+ 实例 findComposer/deepFind 兜底同样排除弹窗内编辑框（doc/20261030）   // 随提交递增（悬停 ⚙ 面板可见）；未提交的中间迭代不涨号
     /* ---------- 状态（实例级） ---------- */
     var excOn = false,    // 本 pane 会话处于"上下文超限被拒"状态（render 时按 picked 会话计算）
       excGone = false,    // 用户点 ✕ 关闭了本次气泡；超限解除后自动复位
@@ -546,7 +547,22 @@
           '<span class="dim">' + L("远端", "remote") + "</span>",
           L("数据源：SSH 远程服务器 ", "Data source: remote server over SSH ") + (d.remote_host || "?") + "\n" +
           L("会话数据实时取自远端机的 ZCode 数据库，「今日合计」亦为远端值", "Session data is fetched live from the remote machine's ZCode database; today's total is the remote value") +
-          (d.remote_error ? "\n⚠ " + L("最近一次远端查询失败：", "Last remote query failed: ") + d.remote_error : ""));
+          (d.remote_error ? "\n⚠ " + L("最近一次远端查询失败：", "Last remote query failed: ") + d.remote_error : "") +
+          (d.remote_empty ? "\n⚠ " + L("远端库里这个会话还没有已完成的请求（各项为 0）——确认远端查询脚本读到的库与远端 ZCode 实际写入的库是同一个",
+                                        "The remote database has no completed requests for this session (all items are 0) — check that the remote query script reads the same database the remote ZCode actually writes") : ""));
+      }
+      if (d.not_local) {   // v64（上游 v62 issue #14）：本地库没有这个会话——全 0 不是坏了，是数据不在这儿；给配置指引
+        it(ico('<circle cx="12" cy="12" r="9"/><path d="M12 16h.01"/><path d="M12 8h.01"/>') +
+          '<span class="dim">' + L("不在本地库", "not in local db") + "</span>",
+          L("这个会话不在本地数据库（~/.zcode/cli/db/db.sqlite）里，所以各项显示 0——不是插件坏了。",
+            "This session is not in the local database (~/.zcode/cli/db/db.sqlite), which is why every item reads 0 — the plugin is not broken.") + "\n" +
+          (d.remote_enabled
+            ? L("已配置 remote 段，但远端查询没有返回它：", "A remote section is configured, but the remote query did not return it: ")
+              + (d.remote_error ? L("查询失败 ", "query failed: ") + d.remote_error
+                 : L("远端库里也没有这个会话（核对远端查询脚本读的库/用户与远端 ZCode 实际写入的是否一致）",
+                     "the remote database does not have it either (verify the database/user the remote query script reads matches what the remote ZCode writes)"))
+            : L("若这是 SSH 远程/他机会话：在 ~/.zcode/zcode-expand/usage-config.json 配置 remote 段即可（README「SSH 远程」；ssh 为空格分隔命令串，docker exec / wsl 等通道可借道）",
+                "If this is an SSH/remote session, add the remote section to ~/.zcode/zcode-expand/usage-config.json (see README; ssh is a space-separated command string, so docker exec / wsl channels work too)")));
       }
       if (last.tps) {   // 最近一次请求的生成速度，置顶显示；随数值三档变色
         var tpsCls = last.tps >= 70 ? "ok" : last.tps >= 40 ? "warm" : "hot";
@@ -689,6 +705,11 @@
         context_window: p.context_window, context_auto: p.context_auto,
         code: p.code, ctx_exc: p.ctx_exc, tools: p.tools,
         remote: !!p.remote, remote_host: p.remote_host || "", remote_error: d.remote_error || "",
+        /* v64（上游 v62 issue #14/#10）：零值会话的来源判定。known 是泵推送的本地库命中集合
+         * （session 表或 model_usage 有行，本地新会话不会误报）；不在其中且未命中远端 → 各项全 0
+         * 的真实原因是"数据不在这儿"，tooltip 给配置指引而非让用户误判插件坏了。 */
+        not_local: !!pickedSid && !p.remote && (d.known || []).indexOf(pickedSid) < 0,
+        remote_empty: !!(p.remote && !p.requests),   // 远端答了、但该会话零已完成请求
         sub: p.sub || {requests: 0, total: 0, input: 0, output: 0, cache_read: 0, active: false, list: []},
       };
       lastSub = view.sub;   // 子代理明细面板的数据源（开关面板/数据推送刷新用）
@@ -1047,6 +1068,7 @@
         if (found || !doc || depth > 8) return;
         try {
           doc.querySelectorAll(COMPOSER_SEL).forEach(function (el) {
+            if (inDialogHost(el)) return;   // v64：弹窗内编辑框不是聊天输入框（上游 v62 issue #9 同款，doc/20261030）
             if (!found && visible(el) && el.getBoundingClientRect().top > innerHeight * 0.45) found = el;
             else if (found && el.getBoundingClientRect().top > found.getBoundingClientRect().top && visible(el)) found = el;
           });
@@ -1112,6 +1134,7 @@
     function findComposer() {
       var best = null;
       document.querySelectorAll("textarea").forEach(function (ta) {
+        if (inDialogHost(ta)) return;   // v64：弹窗内编辑框不是聊天输入框（模型配置弹窗的编辑区落在下半屏，上游 v62 issue #9 同款）
         if (!reallyVisible(ta)) return;
         var r = ta.getBoundingClientRect();
         if (r.top < innerHeight * 0.45) return;   // 聊天输入框特征：在视口下半部（排除设置页等处元素）
