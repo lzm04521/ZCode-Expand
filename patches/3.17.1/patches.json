@@ -305,9 +305,9 @@
           "marker": "globalThis.__ZC_XP_OAUTH__=FO(u"
         },
         {
-          "note": "RPC 注册点交出共享实例（不重复构造）",
+          "note": "RPC 注册点交出共享实例（不重复构造）；注意 3.17.1 中 channel token 已从 rs 漂移为 Ss，replace 第一个参数必须是 Ss",
           "find": ".register(Ss,G)",
-          "replace": ".register(rs,globalThis.__ZC_XP_OAUTH_RPC__=G)",
+          "replace": ".register(Ss,globalThis.__ZC_XP_OAUTH_RPC__=G)",
           "expect": 1,
           "marker": "globalThis.__ZC_XP_OAUTH_RPC__=G"
         },
