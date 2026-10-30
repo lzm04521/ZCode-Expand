@@ -38,16 +38,22 @@ const SWITCH_REQUEST_TTL_MS = 2 * 60 * 1000;
 // 切换前只读探活：用快照 access_token 打官方 BigModel userinfo（getCustomerInfo）。
 // 明确失效/错配则中止切换；超时与网络异常一律放行——不得把网络故障判成凭据失效。
 const PROBE_TIMEOUT_MS = 6000;
+// zcode 域心跳端点：官方 usage-stats 的 start-plan 余额查询（buildZaiStartPlanBalanceUrl
+// = /api/v1/zcode-plan/billing/balance?app_version=<版本>，Bearer zcodeJwtToken，官方每天
+// ~125 次）。注意：app_version 需随版本适配同步更新；mcp/usage 不可用——它要求
+// wireScope 头（organizationId/projectId），快照账号复刻不了这些值（实测裸打 400）。
+const ZCODE_HEARTBEAT_URL = 'https://zcode.z.ai/api/v1/zcode-plan/billing/balance?app_version=3.16.3';
 // health 合法状态：ok 校验通过 / invalid 明确失效 / mismatch 归属不一致 / unknown 无法判定
 const HEALTH_STATES = new Set(['ok', 'invalid', 'mismatch', 'unknown']);
 // 旧备注迁移失败最多尝试次数；达到后标记 save-failed，避免每次启动反复写
 const PROJECT_NAME_MIGRATION_MAX_ATTEMPTS = 3;
 // 迁移串行守卫：同一进程内重复调用复用同一次执行
 let remarksMigrationPromise = null;
-// 闲置保活：服务端 session 按不活跃清理（实测闲置 2~5 天即 200 空 body），定期带
-// 快照 token 打一次 getCustomerInfo 维持。取 4h 而非 12h：定时器只活到会话结束，
-// 单次运行不足 12h 时 12h 定时器可能整日不触发（方案 §3.3）。
-const KEEPALIVE_INTERVAL_MS = 4 * 60 * 60 * 1000;
+// 闲置保活 v2：S4 实验证伪"bigmodel 域探活可续命"（Richmond 每 4h 探活仍 7 天被清，
+// 200 空 body）；对照主用账号 bigmodel 域零流量却 42 天不死 → 活跃信号在 zcode.z.ai
+// 域。sweep 对非活跃 token 补 zcode 心跳（官方客户端 ~6 分钟一次，此处取 1h），
+// 原 bigmodel 探活保留做失效检测（doc/20261029-实施方案-账号保活v2-zcode心跳.md）。
+const KEEPALIVE_INTERVAL_MS = 60 * 60 * 1000;
 // 首轮延迟：避开启动高峰，覆盖 host OAuth 实例（__ZC_XP_OAUTH_RPC__）就绪时间
 const KEEPALIVE_START_DELAY_MS = 2 * 60 * 1000;
 // sweep 状态：lastSweepAt 供 diag 展示；sweeping 防手工 sweepNow 与定时轮重叠
@@ -166,6 +172,18 @@ function sanitizeAccounts(value) {
   return out;
 }
 
+// 心跳合法状态：ok 送达且 code===0 / fail 明确拒绝或业务异常 / unknown 无法判定
+const HEARTBEAT_STATES = new Set(['ok', 'fail', 'unknown']);
+
+/** zcode 心跳结果净化：与 health 同款白名单风格；reason 只留文案 */
+function sanitizeHeartbeat(value) {
+  if (!isPlainObject(value)) return null;
+  if (!HEARTBEAT_STATES.has(value.state)) return null;
+  const out = { state: value.state, at: Number.isFinite(value.at) ? value.at : Date.now() };
+  if (typeof value.reason === 'string' && value.reason) out.reason = value.reason.slice(0, 200);
+  return out;
+}
+
 /** 探活结果净化：状态白名单 + 时间戳；detail 只留文案，绝不落令牌 */
 function sanitizeHealth(value) {
   if (!isPlainObject(value)) return null;
@@ -175,6 +193,8 @@ function sanitizeHealth(value) {
     checkedAt: Number.isFinite(value.checkedAt) ? value.checkedAt : Date.now(),
   };
   if (typeof value.detail === 'string' && value.detail) out.detail = value.detail.slice(0, 200);
+  const hb = sanitizeHeartbeat(value.heartbeat);
+  if (hb) out.heartbeat = hb;
   return out;
 }
 
@@ -443,6 +463,56 @@ async function probeAccount(account) {
   return { state: 'ok' };
 }
 
+/**
+ * zcode 域心跳：用快照 zcodeJwtToken 打一次官方 usage-stats 的 mcp/usage（只读 GET）。
+ * 假说依据：服务端按账号级活跃清理 session，信号在 zcode.z.ai 域——主用账号 bigmodel
+ * 域零流量仍 42 天不死，纯探活账号 7 天被清。HTTP 200 且 code===0 视为送达且鉴权
+ * 通过；401/403 与业务非 0 为 fail；网络异常为 unknown（不落盘，不吃掉观测数据）。
+ */
+async function zcodeHeartbeat(account) {
+  const oauth = oauthService();
+  const jwt = typeof account?.tokenSet?.zcodeJwtToken === 'string' ? account.tokenSet.zcodeJwtToken.trim() : '';
+  if (!jwt) return { state: 'skip', reason: '快照缺少 zcodeJwtToken' };
+  if (!oauth || !oauth.apiClient || typeof oauth.apiClient.request !== 'function') {
+    return { state: 'unknown', reason: '网络客户端不可用' };
+  }
+  let res;
+  try {
+    res = await withTimeout(
+      oauth.apiClient.request(ZCODE_HEARTBEAT_URL, {
+        method: 'GET',
+        timeoutMs: PROBE_TIMEOUT_MS,
+        headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+      }),
+      PROBE_TIMEOUT_MS + 500,
+      'zcode 心跳'
+    );
+  } catch (err) {
+    return { state: 'unknown', reason: `无法确认：${String(err?.message ?? err)}` };
+  }
+  if (!res || res.ok !== true) {
+    const status = res && typeof res.status === 'number' ? res.status : null;
+    if (status === 401 || status === 403) {
+      return { state: 'fail', reason: `zcode 侧拒绝该凭据（HTTP ${status}）` };
+    }
+    // 400（code 3001 parameter error）实测发生在鉴权之后（无鉴权是 401）——jwt 解析
+    // 层拒绝，归 fail 而非 unknown，避免网络故障语义混入凭据问题
+    if (status === 400) {
+      return { state: 'fail', reason: 'zcode 侧参数校验拒绝（HTTP 400，jwt 可能不被接受）' };
+    }
+    return { state: 'unknown', reason: `请求未成功（HTTP ${status ?? '未知'}）` };
+  }
+  let body = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  if (isPlainObject(body) && body.code === 0) return { state: 'ok' };
+  const code = isPlainObject(body) && typeof body.code === 'number' ? body.code : null;
+  return { state: 'fail', reason: `业务返回异常（code ${code ?? '非 JSON'}）` };
+}
+
 /** 探活结果写回快照（列表角标据此显示）；失败不阻塞主流程 */
 async function setAccountHealth(id, health) {
   const clean = sanitizeHealth(health);
@@ -460,6 +530,40 @@ async function setAccountHealth(id, health) {
   } catch (err) {
     logError('写入账号健康状态失败', err?.message ?? err);
     return false;
+  }
+}
+
+/**
+ * sweep 专用 health 写入：state/detail/checkedAt 只在可判定时更新（unknown 保旧值，
+ * 与 setAccountHealth 同口径），heartbeat 独立合并（本轮未打心跳则保留旧值）；
+ * 一次 mutateStore 落盘，避免与 setAccountHealth 双写竞态。
+ */
+async function writeSweepHealth(id, probe, beat) {
+  const hb = beat && beat.state !== 'skip' && beat.state !== 'unknown' ? sanitizeHeartbeat(beat) : null;
+  if (!hb && probe.state === 'unknown') return;
+  try {
+    await mutateStore((store) => {
+      const list = Array.isArray(store.accounts) ? store.accounts.slice() : [];
+      const index = list.findIndex((it) => it && it.id === id);
+      if (index < 0) return false;
+      const prev = isPlainObject(list[index].health) ? list[index].health : {};
+      const merged =
+        probe.state !== 'unknown'
+          ? {
+              state: probe.state,
+              checkedAt: Date.now(),
+              ...(probe.reason ? { detail: probe.reason } : {}),
+              ...(hb ? { heartbeat: hb } : prev.heartbeat ? { heartbeat: prev.heartbeat } : {}),
+            }
+          : { ...prev, heartbeat: hb };
+      const clean = sanitizeHealth(merged);
+      if (!clean) return false;
+      list[index] = { ...list[index], health: clean };
+      store.accounts = list;
+      return true;
+    });
+  } catch (err) {
+    logError('写入账号健康状态失败', err?.message ?? err);
   }
 }
 
@@ -649,18 +753,18 @@ async function sweepKeepalive({ force = false } = {}) {
         results.push({ id: account.id, skipped: 'recent' });
         continue;
       }
+      // 诊断期（2026-10-29 起）：活跃 token 也打心跳——端点正确性需要当前有效
+      // jwt 做阳性对照（Richmond 快照=活跃 jwt）。实验闭环后恢复活跃跳过优化。
+      const beat = await zcodeHeartbeat(account);
       const probe = await probeAccount(account);
-      if (probe.state !== 'unknown') {
-        await setAccountHealth(account.id, {
-          state: probe.state,
-          detail: probe.reason,
-          checkedAt: Date.now(),
-        });
+      if (probe.state !== 'unknown' || (beat && beat.state !== 'skip' && beat.state !== 'unknown')) {
+        await writeSweepHealth(account.id, probe, beat);
       }
       results.push({
         id: account.id,
         state: probe.state,
         ...(probe.reason ? { reason: probe.reason } : {}),
+        ...(beat ? { heartbeat: beat.state } : {}),
       });
     }
     keepaliveLastSweepAt = Date.now();
