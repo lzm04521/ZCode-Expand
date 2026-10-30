@@ -1,0 +1,9 @@
+{
+  "appVersion": "3.17.1",
+  "buildCommitId": "025f7f39",
+  "buildTime": "2026-10-29T12:42:31.412Z",
+  "electronBuilderVersion": "26.17.0",
+  "patchFormat": 1,
+  "createdAt": "2026-10-30",
+  "notes": "ZCode 3.17.1 补丁集，自 3.16.3 平移适配，功能集不变：状态点三件套（项目行 / 任务分区头 / 任务行运行态覆盖未读）、BigModel 账号切换及探活、Token 用量状态栏、Directory Opus、禁用会话 Esc、快照上传阻断、备注迁移官方项目名称。锚点取自本机 build 025f7f39 原始 app.asar。3.17.1 变化：项目行组件新增 hideDeviceName prop（别名整体移位）、runPendingSessionCompletion 参数顺序 t,n,r、validation zod 别名 D(S())/O→E(x())/D、chunk 全部改名。"
+}

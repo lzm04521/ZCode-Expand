@@ -1,0 +1,372 @@
+{
+  "appVersion": "3.17.1",
+  "patchFormat": 1,
+  "summary": "ZCode 3.17.1（build 025f7f39），自 3.16.3 平移适配，功能集不变。保留项目行与任务分区头红等待>蓝运行>绿未读状态点、BigModel 账号管理/切换及只读探活、Token 用量状态栏（含子代理 v62.1）、Directory Opus、禁用 Esc 终止。官方项目名称已落 SQLite projects.name/name_overridden，自定义备注编辑/显示/迁移/远控 label/标题全部退役；旧 projectRemarks 数据保留但不接管、不自动迁移。新版侧栏项目树聚合独立 zcXpTasks（含置顶、不含归档），任务分区用原生完整数组，收起与显示更多不影响；自定义分组/日期头不扩展。settings 服务移入 chunk-EQ7EYADI.js，merge/extract 使用 includeRemarks=false；账号请求 schema 仅放行 zcAccountSwitch/zcAccountDelete，accounts 不入官方设置。OAuth 单实例同时供 agent/RPC，快照在 signed-in 通知后挂入。旧备注一次性迁移：host 启动后按根目录唯一匹配，只写入官方名仍为默认的项目（nameOverridden=0），已有官方名/无匹配/歧义一律跳过并记录，旧 projectRemarks 保留不删。账号收尾引用及按钮类型经定义/作用域核对，连接字段 update 使用官方 CAS 参数。用量三件套原样保留，DOM 锚静态核对。",
+  "addFiles": [
+    {
+      "from": "src/renderer/zc-remarks.js",
+      "to": "out/renderer/zcode-expand/zc-remarks.js",
+      "description": "状态点判定与动画模块（复用历史文件名；3.16.2 不调用备注编辑/显示/迁移）"
+    },
+    {
+      "from": "src/renderer/zc-accounts.js",
+      "to": "out/renderer/zcode-expand/zc-accounts.js",
+      "description": "BigModel 账号管理/快速切换模块（注入到渲染层，暴露 window.__ZC_ACCOUNTS__；含切换前探活结论的失效/错配角标与失败后重读列表）"
+    },
+    {
+      "from": "src/main/zc-dopus.mjs",
+      "to": "out/main/zcode-expand/zc-dopus.mjs",
+      "description": "Directory Opus 接管模块（注入主进程，暴露 globalThis.__ZC_EXPAND_DOPUS__）"
+    },
+    {
+      "from": "src/main/zc-store.mjs",
+      "to": "out/host/zcode-expand/zc-store.mjs",
+      "description": "BigModel 账号快照/切换与只读探活；新版本 includeRemarks=false，旧备注数据保留不接管"
+    },
+    {
+      "from": "src/main/zc-usage.mjs",
+      "to": "out/main/zcode-expand/zc-usage.mjs",
+      "description": "token 用量状态栏泵（注入主进程：fs.watch db 目录→worker 按需查询→executeJavaScript 推送；SSH 远程会话支持，配置 ~/.zcode/zcode-expand/usage-config.json）"
+    },
+    {
+      "from": "src/main/zc-usage-query.cjs",
+      "to": "out/main/zcode-expand/zc-usage-query.cjs",
+      "description": "token 用量查询体（worker eval 载入 + CLI 模式，node:sqlite 只读，口径见 doc/20260930 设计文档 §5/§13 + doc/20261015 方案 D9~D11：子代理会话分型/⑦ 放宽含 compact/today.sub）"
+    },
+    {
+      "from": "src/main/zc-usage-overlay.js",
+      "to": "out/main/zcode-expand/zc-usage-overlay.js",
+      "description": "token 用量状态条渲染层（原版 overlay.js 裁剪改造：删语言/mine/协调器改 pane 容器锚，纯 DOM 不碰 React；v62 子代理会话只读视图容器锚 + 子代理口径文案）；v62.1 容器模式底部空带定位（data-v4-timeline-scroll 上 padding-bottom ≤46px，条浮带内）"
+    }
+  ],
+  "targets": [
+    {
+      "file": "out/renderer/index.html",
+      "description": "入口前加载状态判定模块与 BigModel 账号模块；新版本不调用备注 UI 或迁移功能",
+      "edits": [
+        {
+          "note": "注入状态点与账号模块",
+          "find": "<script type=\"module\" crossorigin src=\"./assets/index-u-S3C1E6.js\"></script>",
+          "replace": "<script src=\"./zcode-expand/zc-remarks.js\"></script>\n    <script src=\"./zcode-expand/zc-accounts.js\"></script>\n    <script type=\"module\" crossorigin src=\"./assets/index-u-S3C1E6.js\"></script>",
+          "expect": 1,
+          "marker": "zcode-expand/zc-accounts.js"
+        }
+      ]
+    },
+    {
+      "file": "out/main/chunk-ZP2RJMJD.js",
+      "description": "设置全量/patch schema 仅增加账号切换和删除请求字段；不接管官方项目名称、不放行 accounts",
+      "edits": [
+        {
+          "note": "全量 schema",
+          "find": "recentProjects:e.array(e.string()).default([]),locale:",
+          "replace": "recentProjects:e.array(e.string()).default([]),zcAccountSwitch:e.object({}).passthrough().optional(),zcAccountDelete:e.object({}).passthrough().optional(),locale:",
+          "expect": 1,
+          "marker": "recentProjects:e.array(e.string()).default([]),zcAccountSwitch:e.object({}).passthrough().optional(),zcAccountDelete:e.object({}).passthrough().optional()"
+        },
+        {
+          "note": "局部 patch schema",
+          "find": "recentProjects:e.array(e.string()).optional(),locale:",
+          "replace": "recentProjects:e.array(e.string()).optional(),zcAccountSwitch:e.object({}).passthrough().optional(),zcAccountDelete:e.object({}).passthrough().optional(),locale:",
+          "expect": 1,
+          "marker": "recentProjects:e.array(e.string()).optional(),zcAccountSwitch:e.object({}).passthrough().optional(),zcAccountDelete:e.object({}).passthrough().optional()"
+        }
+      ]
+    },
+    {
+      "file": "out/host/chunk-ZSDMP7DM.js",
+      "description": "设置全量/patch schema 仅增加账号切换和删除请求字段；不接管官方项目名称、不放行 accounts",
+      "edits": [
+        {
+          "note": "全量 schema",
+          "find": "recentProjects:e.array(e.string()).default([]),locale:",
+          "replace": "recentProjects:e.array(e.string()).default([]),zcAccountSwitch:e.object({}).passthrough().optional(),zcAccountDelete:e.object({}).passthrough().optional(),locale:",
+          "expect": 1,
+          "marker": "recentProjects:e.array(e.string()).default([]),zcAccountSwitch:e.object({}).passthrough().optional(),zcAccountDelete:e.object({}).passthrough().optional()"
+        },
+        {
+          "note": "局部 patch schema",
+          "find": "recentProjects:e.array(e.string()).optional(),locale:",
+          "replace": "recentProjects:e.array(e.string()).optional(),zcAccountSwitch:e.object({}).passthrough().optional(),zcAccountDelete:e.object({}).passthrough().optional(),locale:",
+          "expect": 1,
+          "marker": "recentProjects:e.array(e.string()).optional(),zcAccountSwitch:e.object({}).passthrough().optional(),zcAccountDelete:e.object({}).passthrough().optional()"
+        }
+      ]
+    },
+    {
+      "file": "out/renderer/assets/validation-CN6eIzmJ.js",
+      "description": "设置全量/patch schema 仅增加账号切换和删除请求字段；不接管官方项目名称、不放行 accounts",
+      "edits": [
+        {
+          "note": "全量 schema",
+          "find": "recentProjects:E(x()).default([]),locale:",
+          "replace": "recentProjects:E(x()).default([]),zcAccountSwitch:D({}).passthrough().optional(),zcAccountDelete:D({}).passthrough().optional(),locale:",
+          "expect": 1,
+          "marker": "recentProjects:E(x()).default([]),zcAccountSwitch:D({}).passthrough().optional(),zcAccountDelete:D({}).passthrough().optional()"
+        },
+        {
+          "note": "局部 patch schema",
+          "find": "recentProjects:E(x()).optional(),locale:",
+          "replace": "recentProjects:E(x()).optional(),zcAccountSwitch:D({}).passthrough().optional(),zcAccountDelete:D({}).passthrough().optional(),locale:",
+          "expect": 1,
+          "marker": "recentProjects:E(x()).optional(),zcAccountSwitch:D({}).passthrough().optional(),zcAccountDelete:D({}).passthrough().optional()"
+        }
+      ]
+    },
+    {
+      "file": "out/renderer/assets/styles-C9n_FfEX.js",
+      "description": "新版项目树三态状态点、任务分区头聚合、BigModel 账号切换和禁用会话 Esc；不包含自定义备注链",
+      "edits": [
+        {
+          "note": "账号组件取完整服务集合",
+          "find": "{modelSelectionService:l,oauthService:u,credentialService:d}=du()",
+          "replace": "{modelSelectionService:l,oauthService:u,credentialService:d}=du(),zcXpSvc=du()",
+          "expect": 1,
+          "marker": "credentialService:d}=du(),zcXpSvc=du()"
+        },
+        {
+          "note": "账号收尾引用及连接设置 CAS 包装",
+          "find": "qe=(0,Q.useCallback)(async(e,t,n)=>{if(!(t!==`bigmodel`&&t!==`zai`)){",
+          "replace": "zcXpAcctBind=window.__ZC_ACCOUNTS__&&window.__ZC_ACCOUNTS__.bindRefresh({services:zcXpSvc,settings:ye,update:async zcXpPatch=>{if(Object.hasOwn(zcXpPatch,`providerFamilyConnectionSelections`)){let zcXpCurrent=await zcXpSvc.settingService.get();return Se(zcXpPatch,{providerFamilyDomain:zcXpCurrent.providerFamilyDomain,providerFamilyConnectionSelections:zcXpCurrent.providerFamilyConnectionSelections,providerFamilyDomainUpdatedAt:zcXpCurrent.providerFamilyDomainUpdatedAt??0})}return Se(zcXpPatch)},credentials:d,setUser:ge,setOAuthError:ve,refreshAll:Ie,refreshProviders:y,refreshPlanSnapshots:Pe,refreshPurchaseToken:Te,familyDomainOf:hi,clearCodingPlanWebviewStorage:()=>typeof c.executeDesktopCommand==`function`?c.executeDesktopCommand(ca.ClearCodingPlanWebviewStorage):null}),qe=(0,Q.useCallback)(async(e,t,n)=>{if(!(t!==`bigmodel`&&t!==`zai`)){",
+          "expect": 1,
+          "marker": "zcXpAcctBind=window.__ZC_ACCOUNTS__"
+        },
+        {
+          "note": "卡片追加切换按钮；de 为 br(e)?.oauthProviderId",
+          "find": "canDisconnectProvider:Ne?!1:le,disconnectLoading:a,onLogin:g,onDisconnect:b})]});",
+          "replace": "canDisconnectProvider:Ne?!1:le,disconnectLoading:a,onLogin:g,onDisconnect:b,zcXpSwitch:window.__ZC_ACCOUNTS__?window.__ZC_ACCOUNTS__.switchButton({jsx:$.jsx,Button:X,presetId:e,oauthProviderId:ce}):null})]});",
+          "expect": 1,
+          "marker": "switchButton({jsx:$.jsx,Button:X,presetId:e,oauthProviderId:ce})"
+        },
+        {
+          "note": "按钮组接收可选切换节点",
+          "find": "function sqn({providerName:e,isDisconnected:t,isUnavailable:n,isPurchased:r,loginLoading:i,loginButtonId:a,loginVisible:o,canDisconnectProvider:s,disconnectLoading:c,onLogin:l,onDisconnect:u}){",
+          "replace": "function sqn({providerName:e,isDisconnected:t,isUnavailable:n,isPurchased:r,loginLoading:i,loginButtonId:a,loginVisible:o,canDisconnectProvider:s,disconnectLoading:c,onLogin:l,onDisconnect:u,zcXpSwitch:m}){",
+          "expect": 1,
+          "marker": "onDisconnect:u,zcXpSwitch:m})"
+        },
+        {
+          "note": "按钮组末尾渲染切换节点",
+          "find": "d.formatMessage({id:`settings.modelProvider.codingPlan.disconnect`})]}):null]})}",
+          "replace": "d.formatMessage({id:`settings.modelProvider.codingPlan.disconnect`})]}):null,m??null]})}",
+          "expect": 1,
+          "marker": "})]}):null,m??null]})}"
+        },
+        {
+          "note": "项目聚合包含置顶、排除归档，原 tasks 列表不变",
+          "find": "tasks:JN(p,{kind:`project`,projectId:o.id,hostId:o.hostId}),onSelect:_",
+          "replace": "tasks:JN(p,{kind:`project`,projectId:o.id,hostId:o.hostId}),zcXpTasks:p.tasks.filter(zcXpTask=>zcXpTask.projectId===o.id&&zcXpTask.hostId===o.hostId&&!zcXpTask.archived),onSelect:_",
+          "expect": 1,
+          "marker": "zcXpTasks:p.tasks.filter("
+        },
+        {
+          "note": "项目行同一作用域计算三态",
+          "find": "function({project:e,remoteHost:t,deviceLabel:n,hideDeviceName:r=!1,diagnostics:i,tasks:a,hasUnread:o=!1,onCreate:s,onViewFiles:c,onEdit:l,onDelete:u,onPin:d,onSelect:f,refresh:p,availability:m=lCt,onRemoveEntry:h,onOpenDeviceSettings:g,onManageProjects:_,additionalActions:v=uCt,editable:y,isOpen:b,attributes:x,listeners:S,setActivatorNodeRef:C,dragEnabled:w}){",
+          "replace": "function({project:e,remoteHost:t,deviceLabel:n,hideDeviceName:r=!1,diagnostics:i,tasks:a,hasUnread:o=!1,onCreate:s,onViewFiles:c,onEdit:l,onDelete:u,onPin:d,onSelect:f,refresh:p,availability:m=lCt,onRemoveEntry:h,onOpenDeviceSettings:g,onManageProjects:_,additionalActions:v=uCt,editable:y,isOpen:b,attributes:x,listeners:S,setActivatorNodeRef:C,dragEnabled:w,zcXpTasks}){let zcXpList=zcXpTasks??a,zcXpWait=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListWaiting(zcXpList):!1,zcXpBusy=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListBusy(zcXpList):!1,zcXpDone=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListDone(zcXpList):!1;",
+          "expect": 1,
+          "marker": "let zcXpList=zcXpTasks??a"
+        },
+        {
+          "note": "项目行红等待 > 蓝未读 > 绿 spinner（不修改名称）",
+          "find": "!b&&m.online&&o?(0,$.jsx)(`span`,{\"data-testid\":`virtual-project-unread`,\"data-workspace-unread-indicator\":`true`,role:`img`,\"aria-label\":T.formatMessage({id:`project.hasUnread`}),className:`size-1.5 shrink-0 rounded-full bg-icon-blue`}):null,",
+          "replace": "zcXpWait?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-waiting-indicator\":`true`,className:`size-[7px] shrink-0 rounded-full bg-destructive zc-xp-waiting`}):zcXpDone?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-done-indicator\":`true`,className:`size-[7px] shrink-0 rounded-full bg-icon-blue zc-xp-done`}):zcXpBusy?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-workspace-running-indicator\":`true`,className:`flex size-3.5 shrink-0 items-center justify-center`,children:(0,$.jsx)(yc,{className:`size-3.5 animate-spin zc-xp-spin`,strokeWidth:3})}):null,",
+          "expect": 1,
+          "marker": "data-workspace-running-indicator\":`true`,className:`flex size-3.5"
+        },
+        {
+          "note": "任务/项目分区各聚合一组三态并传给容器（项目口径=projectId!=null 且非归档，与项目行 zcXpTasks 同构）",
+          "find": "projectId:null}).filter(e=>e.hostId===`local`&&!p.has(e.hostId));return(0,$.jsx)(CCt,{",
+          "replace": "projectId:null}).filter(e=>e.hostId===`local`&&!p.has(e.hostId)),zcXpConvWait=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListWaiting(m):!1,zcXpConvBusy=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListBusy(m):!1,zcXpConvDone=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListDone(m):!1,zcXpProjList=e.tasks.filter(e=>e.projectId!=null&&!e.archived),zcXpProjWait=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListWaiting(zcXpProjList):!1,zcXpProjBusy=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListBusy(zcXpProjList):!1,zcXpProjDone=window.__ZC_EXPAND__?window.__ZC_EXPAND__.isTaskListDone(zcXpProjList):!1;return(0,$.jsx)(CCt,{zcXpWait:zcXpConvWait,zcXpBusy:zcXpConvBusy,zcXpDone:zcXpConvDone,zcXpProjWait:zcXpProjWait,zcXpProjBusy:zcXpProjBusy,zcXpProjDone:zcXpProjDone,",
+          "expect": 1,
+          "marker": "zcXpConvWait=window.__ZC_EXPAND__"
+        },
+        {
+          "note": "分区容器接收三态参数",
+          "find": "function CCt({projects:e,tasks:t,onAdd:n,onCreate:r,hasExpandedProjects:i,canToggleProjects:a,onToggleProjects:o}){",
+          "replace": "function CCt({projects:e,tasks:t,onAdd:n,onCreate:r,hasExpandedProjects:i,canToggleProjects:a,onToggleProjects:o,zcXpWait:zcXpW=!1,zcXpBusy:zcXpB=!1,zcXpDone:zcXpD=!1,zcXpProjWait:zcXpProjW=!1,zcXpProjBusy:zcXpProjB=!1,zcXpProjDone:zcXpProjD=!1}){",
+          "expect": 1,
+          "marker": "onToggleProjects:o,zcXpWait:zcXpW"
+        },
+        {
+          "note": "分区头三态分流：任务侧=conversation 三态，项目侧=项目任务聚合三态",
+          "find": "testId:f?`project-section`:`conversation-section`,open:f?l.projectsExpanded:l.conversationsExpanded,",
+          "replace": "testId:f?`project-section`:`conversation-section`,open:f?l.projectsExpanded:l.conversationsExpanded,zcXpWait:f?zcXpProjW:zcXpW,zcXpBusy:f?zcXpProjB:zcXpB,zcXpDone:f?zcXpProjD:zcXpD,",
+          "expect": 1,
+          "marker": "zcXpWait:f?zcXpProjW:zcXpW"
+        },
+        {
+          "note": "分区头可选三态 props",
+          "find": "function hCt({title:e,open:t,onOpenChange:n,action:r,children:i,testId:a,sortableId:o,dragHandleLabel:s,inset:c=!1}){",
+          "replace": "function hCt({title:e,open:t,onOpenChange:n,action:r,children:i,testId:a,sortableId:o,dragHandleLabel:s,inset:c=!1,zcXpWait:zcXpSecW=!1,zcXpBusy:zcXpSecB=!1,zcXpDone:zcXpSecD=!1}){",
+          "expect": 1,
+          "marker": "zcXpSecW=!1"
+        },
+        {
+          "note": "任务标题旁同款三态：红等待 > 蓝未读 > 绿 spinner，收起时仍存活",
+          "find": "children:[(0,$.jsx)(`span`,{className:`min-w-0 truncate`,children:e}),t?(0,$.jsx)(Ds,{\"aria-hidden\":`true`,\"data-purpose-section-chevron\":`expanded`,",
+          "replace": "children:[(0,$.jsx)(`span`,{className:`min-w-0 truncate`,children:e}),zcXpSecW?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-zcxp-conv-waiting\":`true`,className:`size-[7px] shrink-0 rounded-full bg-destructive zc-xp-waiting`}):zcXpSecD?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-zcxp-conv-done\":`true`,className:`size-[7px] shrink-0 rounded-full bg-icon-blue zc-xp-done`}):zcXpSecB?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,\"data-zcxp-conv-running\":`true`,className:`flex size-3.5 shrink-0 items-center justify-center`,children:(0,$.jsx)(yc,{className:`size-3.5 animate-spin zc-xp-spin`,strokeWidth:3})}):null,t?(0,$.jsx)(Ds,{\"aria-hidden\":`true`,\"data-purpose-section-chevron\":`expanded`,",
+          "expect": 1,
+          "marker": "\"data-zcxp-conv-running\":`true`,className:`flex size-3.5"
+        },
+        {
+          "note": "禁用 Esc 终止，保留原按钮调用和焦点保护",
+          "find": "!_||i||!t||!Ge?.control.canStop)return;let e=e=>{e.key===`Escape`&&le.current&&(!v&&!e.composedPath().includes(le.current)||b2t(e)||(e.preventDefault(),Va(`escape`)))};",
+          "replace": "!_||i||!t||!Ge?.control.canStop)return;let e=e=>{!1&&e.key===`Escape`&&le.current&&(!v&&!e.composedPath().includes(le.current)||b2t(e)||(e.preventDefault(),Va(`escape`)))};",
+          "expect": 1,
+          "marker": "!1&&e.key===`Escape`&&le.current"
+        },
+        {
+          "note": "任务行状态叠加询问与运行优先级（询问 > 运行 > 未读）",
+          "find": "ie=(0,Q.useMemo)(()=>fat(n,F),[n,F]),ae=Fi(n),",
+          "replace": "ie=(0,Q.useMemo)(()=>fat(n,F),[n,F]),zcXpStatus=L?`waiting`:(F?.phase===`prewarming`||F?.phase===`running`)?`loading`:ie,ae=Fi(n),",
+          "expect": 1,
+          "marker": "zcXpStatus=L?`waiting`:(F?.phase"
+        },
+        {
+          "note": "任务行左侧只有 spinner 状态旋转",
+          "find": "className:Z(`flex size-4 items-center justify-center transition-opacity`,ie===`loading`&&`animate-spin`,De&&`hidden`,o&&`invisible`)",
+          "replace": "className:Z(`flex size-4 items-center justify-center transition-opacity`,zcXpStatus===`loading`&&`animate-spin`,De&&`hidden`,o&&`invisible`)",
+          "expect": 1,
+          "marker": "zcXpStatus===`loading`&&`animate-spin`"
+        },
+        {
+          "note": "任务行左侧：询问红 > 运行绿 spinner > 未读蓝（均 7px 点 / 14px spinner）",
+          "find": "ie===`error`?(0,$.jsx)(`span`,{\"data-error-indicator\":`true`,className:`h-1.5 w-1.5 rounded-full bg-destructive`}):ie===`unread`?(0,$.jsx)(`span`,{\"data-unread-indicator\":`true`,className:`size-[7px] rounded-full bg-icon-blue`}):ie===`loading`?(0,$.jsx)(yc,{className:`size-4 text-foreground-subtle`}):null",
+          "replace": "zcXpStatus===`error`?(0,$.jsx)(`span`,{\"data-error-indicator\":`true`,className:`size-[7px] rounded-full bg-destructive`}):zcXpStatus===`waiting`?(0,$.jsx)(`span`,{\"data-waiting-indicator\":`true`,className:`size-[7px] rounded-full bg-destructive`}):zcXpStatus===`unread`?(0,$.jsx)(`span`,{\"data-unread-indicator\":`true`,className:`size-[7px] rounded-full bg-icon-blue`}):zcXpStatus===`loading`?(0,$.jsx)(yc,{className:`size-3.5 zc-xp-spin`,strokeWidth:3}):null",
+          "expect": 1,
+          "marker": "data-waiting-indicator\":`true`,className:`size-[7px] rounded-full bg-destructive"
+        },
+        {
+          "note": "另一任务行组件叠加询问与运行优先级，未读恢复官方蓝原类",
+          "find": "I=A===`error`?`bg-destructive`:A===`unread`?`bg-sky-500 dark:bg-sky-400`:null,L=!_,",
+          "replace": "I=A===`error`?`bg-destructive`:A===`unread`?`bg-sky-500 dark:bg-sky-400`:null,zcXpStatus=E?`waiting`:(w?.phase===`prewarming`||w?.phase===`running`)?`loading`:A,L=!_,",
+          "expect": 1,
+          "marker": "zcXpStatus=E?`waiting`:(w?.phase"
+        },
+        {
+          "note": "另一任务行左侧：询问红 > 运行绿 spinner > 错误/未读点（点 7px）",
+          "find": "A===`loading`?(0,$.jsx)(yc,{className:`size-3.5 animate-spin text-foreground-subtle`}):I?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,className:`flex size-4 shrink-0 items-center justify-center`,children:(0,$.jsx)(`span`,{className:Z(`size-1.5 rounded-full`,I)})}):null",
+          "replace": "zcXpStatus===`waiting`?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,className:`flex size-4 shrink-0 items-center justify-center`,children:(0,$.jsx)(`span`,{className:`size-[7px] rounded-full bg-destructive`})}):zcXpStatus===`loading`?(0,$.jsx)(yc,{className:`size-3.5 animate-spin zc-xp-spin`,strokeWidth:3}):I?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,className:`flex size-4 shrink-0 items-center justify-center`,children:(0,$.jsx)(`span`,{className:Z(`size-[7px] rounded-full`,I)})}):null",
+          "expect": 2,
+          "marker": "zcXpStatus===`waiting`?(0,$.jsx)(`span`,{\"aria-hidden\":`true`,className:`flex size-4"
+        }
+      ]
+    },
+    {
+      "file": "out/host/chunk-LNTVTW5D.js",
+      "description": "新版 settings 服务真实读写路径：只接管账号；所有 merge/extract 明确 includeRemarks=false",
+      "edits": [
+        {
+          "note": "settings chunk 加载 store（幂等副作用 import）",
+          "find": "import{a as s,e as l}from\"./chunk-IYVG6UP7.js\";",
+          "replace": "import\"./zcode-expand/zc-store.mjs\";import{a as s,e as l}from\"./chunk-IYVG6UP7.js\";",
+          "expect": 1,
+          "marker": "import\"./zcode-expand/zc-store.mjs\";"
+        },
+        {
+          "note": "readSettings 读点只合并账号",
+          "find": "d=s(async()=>(await a()).settings,\"readSettings\")",
+          "replace": "d=s(async()=>{let zcXpSettings=(await a()).settings;return globalThis.__ZC_XP_STORE__?await globalThis.__ZC_XP_STORE__.merge(zcXpSettings,{includeRemarks:!1}):zcXpSettings},\"readSettings\")",
+          "expect": 1,
+          "marker": "merge(zcXpSettings,{includeRemarks:!1}):zcXpSettings"
+        },
+        {
+          "note": "get 常规及迁移路径末尾只合并账号",
+          "find": "async get(){await u;let E=await a(),k=await _(E.settings);return!E.needsMigrationPersist&&JSON.stringify(k)===JSON.stringify(E.settings)?k:(await y(async(I,S)=>{let v=await a(),C=await _(v.settings);!v.needsMigrationPersist&&JSON.stringify(C)===JSON.stringify(v.settings)||await c(C,I,S)}),d())}",
+          "replace": "async get(){await u;let E=await a(),k=await _(E.settings);let zcXpGet=!E.needsMigrationPersist&&JSON.stringify(k)===JSON.stringify(E.settings)?k:(await y(async(I,S)=>{let v=await a(),C=await _(v.settings);!v.needsMigrationPersist&&JSON.stringify(C)===JSON.stringify(v.settings)||await c(C,I,S)}),await d());return globalThis.__ZC_XP_STORE__?await globalThis.__ZC_XP_STORE__.merge(zcXpGet,{includeRemarks:!1}):zcXpGet}",
+          "expect": 1,
+          "marker": "merge(zcXpGet,{includeRemarks:!1})"
+        },
+        {
+          "note": "writeSettingsAt 拆出账号请求，官方项目设置不变",
+          "find": "let a=await We(r),c={...Rt(a),...e};",
+          "replace": "let a=await We(r),c=globalThis.__ZC_XP_STORE__?await globalThis.__ZC_XP_STORE__.extract(e,{...Rt(a),...e},{includeRemarks:!1}):{...Rt(a),...e};",
+          "expect": 1,
+          "marker": "extract(e,{...Rt(a),...e},{includeRemarks:!1})"
+        }
+      ]
+    },
+    {
+      "file": "out/host/index.js",
+      "description": "新版单台 OAuth 实例同时供 agent/RPC 使用，登录成功快照在官方 signed-in 通知之后保存",
+      "edits": [
+        {
+          "note": "OAuth host 加载 store",
+          "find": "import{A as bZ,B as AZ,C as EZ,D as xZ,E as MZ,F as dr,G as ni,H as OZ,I as _m,J as Tm,K as DZ,L as NZ,M as BZ,N as FZ,O as LZ,P as K_,Q as Am,R as Dc,S as Uu,T as Vi,U as xv,V as vr,X as Em,Z as UZ,a as B_,b as De,c as Gi,d as PZ,e as Ee,f as Si,g as Cm,h as Im,i as zt,j as F_,k as L_,l as U_,m as W_,n as _v,o as Mc,p as Fu,q as Tv,r as j_,s as Ua,t as Lu,u as CZ,v as Oc,w as IZ,x as bm,z as z_}from\"./chunk-LNTVTW5D.js\";",
+          "replace": "import\"./zcode-expand/zc-store.mjs\";import{A as bZ,B as AZ,C as EZ,D as xZ,E as MZ,F as dr,G as ni,H as OZ,I as _m,J as Tm,K as DZ,L as NZ,M as BZ,N as FZ,O as LZ,P as K_,Q as Am,R as Dc,S as Uu,T as Vi,U as xv,V as vr,X as Em,Z as UZ,a as B_,b as De,c as Gi,d as PZ,e as Ee,f as Si,g as Cm,h as Im,i as zt,j as F_,k as L_,l as U_,m as W_,n as _v,o as Mc,p as Fu,q as Tv,r as j_,s as Ua,t as Lu,u as CZ,v as Oc,w as IZ,x as bm,z as z_}from\"./chunk-LNTVTW5D.js\";",
+          "expect": 1,
+          "marker": "import\"./zcode-expand/zc-store.mjs\";"
+        },
+        {
+          "note": "交出 agent 使用的同一 OAuth 实例",
+          "find": "G=FO(u,{apiClient:k,onProviderLogout:M})",
+          "replace": "G=globalThis.__ZC_XP_OAUTH__=FO(u,{apiClient:k,onProviderLogout:M})",
+          "expect": 1,
+          "marker": "globalThis.__ZC_XP_OAUTH__=FO(u"
+        },
+        {
+          "note": "RPC 注册点交出共享实例（不重复构造）",
+          "find": ".register(Ss,G)",
+          "replace": ".register(rs,globalThis.__ZC_XP_OAUTH_RPC__=G)",
+          "expect": 1,
+          "marker": "globalThis.__ZC_XP_OAUTH_RPC__=G"
+        },
+        {
+          "note": "persistOAuthSession 完成后快照；t/r/n 语义逐一核对",
+          "find": "this.sessionChanges.fire(\"signed-in\")}async runPendingSessionCompletion(t,n,r){",
+          "replace": "this.sessionChanges.fire(\"signed-in\");globalThis.__ZC_XP_STORE__&&globalThis.__ZC_XP_STORE__.saveAccount({provider:t,tokenSet:n,profile:r})}async runPendingSessionCompletion(t,n,r){",
+          "expect": 1,
+          "marker": "saveAccount({provider:t,tokenSet:n,profile:r})}async runPendingSessionCompletion"
+        },
+        {
+          "note": "项目服务就绪后一次性迁移旧备注为官方名称（仅默认名）",
+          "find": "Bn=new Mi().register(eg,",
+          "replace": "Bn=(globalThis.__ZC_XP_PROJECTS__=be,globalThis.__ZC_XP_STORE__&&globalThis.__ZC_XP_STORE__.migrateProjectRemarks(be),new Mi()).register(eg,",
+          "expect": 1,
+          "marker": "migrateProjectRemarks(be)"
+        }
+      ]
+    },
+    {
+      "file": "out/main/index.js",
+      "description": "Directory Opus 原入口适配与用量泵注入；退役自定义备注 label 推送签名",
+      "edits": [
+        {
+          "note": "注入 Opus 模块",
+          "find": "import{b as Tw,c as Aw}from\"./chunk-4Y3CHHRF.js\";",
+          "replace": "import\"./zcode-expand/zc-dopus.mjs\";import{b as Tw,c as Aw}from\"./chunk-4Y3CHHRF.js\";",
+          "expect": 1,
+          "marker": "import\"./zcode-expand/zc-dopus.mjs\";"
+        },
+        {
+          "note": "注入用量状态栏泵",
+          "find": "import{b as Tw,c as Aw}from\"./chunk-4Y3CHHRF.js\";",
+          "replace": "import\"./zcode-expand/zc-usage.mjs\";import{b as Tw,c as Aw}from\"./chunk-4Y3CHHRF.js\";",
+          "expect": 1,
+          "marker": "import\"./zcode-expand/zc-usage.mjs\";"
+        },
+        {
+          "note": "打开目录时 Opus 优先",
+          "find": "async function iT(e){let t=await ef.openPath(e);",
+          "replace": "async function iT(e){if(await globalThis.__ZC_EXPAND_DOPUS__?.(e))return{success:!0};let t=await ef.openPath(e);",
+          "expect": 1,
+          "marker": "__ZC_EXPAND_DOPUS__?.(e)"
+        },
+        {
+          "note": "文件管理器入口 Opus 优先（darwin 不变）",
+          "find": "if(process.platform===\"darwin\")return Xq(o,t);let i=await nf.openPath(o);",
+          "replace": "if(process.platform===\"darwin\")return Xq(o,t);if(await globalThis.__ZC_EXPAND_DOPUS__?.(o))return{success:!0};let i=await nf.openPath(o);",
+          "expect": 1,
+          "marker": "__ZC_EXPAND_DOPUS__?.(o)"
+        },
+        {
+          "note": "explorer 文件/目录分支接管，WSL 前置分支不变",
+          "find": "if(e===\"explorer\")return a!==\"file\"?iT(t):(ef.showItemInFolder(t),{success:!0});",
+          "replace": "if(e==\"explorer\"){if(await globalThis.__ZC_EXPAND_DOPUS__?.(t))return{success:!0};return a!==\"file\"?iT(t):(ef.showItemInFolder(t),{success:!0})};",
+          "expect": 1,
+          "marker": "__ZC_EXPAND_DOPUS__?.(t))return{success:!0};return a!==\"file\""
+        }
+      ]
+    }
+  ]
+}
