@@ -294,7 +294,7 @@
           "find": "let a=await We(r),c={...It(a),...e};",
           "replace": "let a=await We(r),c=globalThis.__ZC_XP_STORE__?await globalThis.__ZC_XP_STORE__.extract(e,{...It(a),...e},{includeRemarks:!1}):{...It(a),...e};",
           "expect": 1,
-          "marker": "extract(e,{...Rt(a),...e},{includeRemarks:!1})"
+          "marker": "extract(e,{...It(a),...e},{includeRemarks:!1})"
         }
       ]
     },
