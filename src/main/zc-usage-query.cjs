@@ -50,15 +50,18 @@ function isSubagentSession(db, sid, sessRow) {
 
 // 上下文窗口降级链后两层（§5.3 + D8）：⚙ 覆盖在 overlay localStorage，本层只管表 + 默认
 const DEFAULT_WINDOW = 128000;
-const MODEL_WINDOW_EXACT = new Map([                           // key 统一小写比较
-  ['glm-5.3', 1000000],
-  ['glm-5.3-flash', 1000000],
-]);
+/* 家族正则表（doc/20261107 方案 B）：model_id 小写后按序首匹配，结尾 $ 锚定防未来名误伤
+ * （glm-5.35 / deepseek-v4.2-flash 不命中→回落默认，行为同现状）。覆盖 G.Workbuddy-* 等
+ * 路由前缀变体；\b 防前缀路由名（如 xxxglm-5.3）被误伤之外的其余部分误配。 */
+const MODEL_WINDOW_FAMILY = [
+  [/\bglm-5\.3(?:-[a-z0-9.]+)?$/, 1000000],              // GLM-5.3 家族（-flash/-flashx 变体），依据 D8
+  [/\bdeepseek-v4\.1-flash(?:-[a-z0-9.]+)?$/, 1000000],  // DeepSeek 官方 API：上下文最高 1M（1,048,576）
+];
 function lookupWindow(modelId) {
   if (!modelId) return { w: DEFAULT_WINDOW, auto: false };
   if (/\[1m\]/i.test(modelId)) return { w: 1000000, auto: true };          // [1M] 后缀命名规律（D8）
-  const hit = MODEL_WINDOW_EXACT.get(String(modelId).toLowerCase());
-  if (hit) return { w: hit, auto: true };
+  const mid = String(modelId).toLowerCase();
+  for (const [re, w] of MODEL_WINDOW_FAMILY) if (re.test(mid)) return { w, auto: true };
   return { w: DEFAULT_WINDOW, auto: false };
 }
 
