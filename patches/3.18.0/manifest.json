@@ -1,0 +1,9 @@
+{
+  "appVersion": "3.18.0",
+  "buildCommitId": "692af48e",
+  "buildTime": "2026-11-10T12:52:45.327Z",
+  "electronBuilderVersion": "26.17.0",
+  "patchFormat": 1,
+  "createdAt": "2026-11-11",
+  "notes": "ZCode 3.18.0 补丁集，自 3.17.2 平移适配，功能集不变：状态点三件套（项目行 / 任务分区头 / 任务行运行态覆盖未读）、BigModel 账号切换及探活、Token 用量状态栏、Directory Opus、禁用会话 Esc、快照上传阻断、备注迁移官方项目名称、移动端远程控制启动自动激活。锚点取自本机 build 692af48e 原始 app.asar。适配要点见 patches.json summary（OAuth 构造新增 captureCredentialGuard、credentialService 改经服务集合取、writeSettingsAt 官方新增 qn(e)/providerFamilyConnectionSelections 删除逻辑、get 变量对换、channel token Ss→aa、项目服务注册点漂移、spinner wc→xl 等）。"
+}
