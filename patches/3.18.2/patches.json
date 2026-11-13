@@ -312,7 +312,7 @@
         {
           "note": "交出 agent 使用的同一 OAuth 实例（G=LO→nr=xB，官方新增 captureCredentialGuard 参数）",
           "find": "wr=UF(p,{captureCredentialGuard:i(()=>p.captureRecoveryGuard(),\"captureCredentialGuard\"),apiClient:C,onProviderLogout:W})",
-          "replace": "nr=globalThis.__ZC_XP_OAUTH__=UF(p,{captureCredentialGuard:i(()=>p.captureRecoveryGuard(),\"captureCredentialGuard\"),apiClient:C,onProviderLogout:W})",
+          "replace": "wr=globalThis.__ZC_XP_OAUTH__=UF(p,{captureCredentialGuard:i(()=>p.captureRecoveryGuard(),\"captureCredentialGuard\"),apiClient:C,onProviderLogout:W})",
           "expect": 1,
           "marker": "globalThis.__ZC_XP_OAUTH__=UF(p"
         },
@@ -333,7 +333,7 @@
         {
           "note": "项目服务就绪后一次性迁移旧备注为官方名称（仅默认名）；3.18.0 注册点自链头漂移为中段 .register(Er,On)，迁移改参数内逗号表达式（时序等价）",
           "find": ".register(Er,On)",
-          "replace": ".register(_r,(globalThis.__ZC_XP_PROJECTS__=On,globalThis.__ZC_XP_STORE__&&globalThis.__ZC_XP_STORE__.migrateProjectRemarks(On),sn))",
+          "replace": ".register(Er,(globalThis.__ZC_XP_PROJECTS__=On,globalThis.__ZC_XP_STORE__&&globalThis.__ZC_XP_STORE__.migrateProjectRemarks(On),On))",
           "expect": 1,
           "marker": "migrateProjectRemarks(On)"
         }
