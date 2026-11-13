@@ -1,0 +1,9 @@
+{
+  "appVersion": "3.18.2",
+  "buildCommitId": "2681f4af",
+  "buildTime": "2026-11-12T10:14:50.631Z",
+  "electronBuilderVersion": "26.17.0",
+  "patchFormat": 1,
+  "createdAt": "2026-11-13",
+  "notes": "ZCode 3.18.2 补丁集，自 3.18.0 平移适配，功能集不变：状态点三件套（项目行 / 任务分区头 / 任务行运行态覆盖未读）、BigModel 账号切换及探活、Token 用量状态栏、Directory Opus、禁用会话 Esc、快照上传阻断、备注迁移官方项目名称、移动端远程控制启动自动激活。锚点取自本机 build 2681f4af 原始 app.asar。适配要点见 patches.json summary（41 编辑中 14 锚点原样保留——三处 settings schema 全部完好；27 处因压缩符号位移重定位，含渲染层主包 14 处组件级锚点、host/index.js 服务注册 4 处、main/index.js import 与 openPath 5 处、index.html 入口哈希 1 处）。"
+}
