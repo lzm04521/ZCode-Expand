@@ -1,0 +1,9 @@
+{
+  "appVersion": "3.19.1",
+  "buildCommitId": "60f20117",
+  "buildTime": "2026-11-20T06:09:36.805Z",
+  "electronBuilderVersion": "26.17.0",
+  "patchFormat": 1,
+  "createdAt": "2026-11-22",
+  "notes": "ZCode 3.19.1 补丁集，自 3.18.2 平移适配，功能集不变：状态点三件套（项目行 / 任务分区头 / 任务行运行态覆盖未读）、BigModel 账号切换及探活、Token 用量状态栏、Directory Opus、禁用会话 Esc、快照上传阻断、备注迁移官方项目名称、移动端远程控制启动自动激活。锚点取自本机 build 60f20117 原始 app.asar。适配要点见 patches.json summary。"
+}

@@ -6,14 +6,14 @@
 //       仅此审计能拦。压缩名轮回会误报（如 Fe），按「文件 #序号 字段::名」加白名单。
 import { readFileSync } from 'node:fs';
 
-const p = JSON.parse(readFileSync('D:/GitHub/Zcode-Expand/patches/3.18.2/patches.json', 'utf8'));
+const p = JSON.parse(readFileSync('D:/GitHub/Zcode-Expand/patches/3.19.1/patches.json', 'utf8'));
 
-// 从 SUBS 改名对提炼的旧标识符（3.18.0 侧），按风险列出
-const OLD_IDS = ['uf','Je','Le','Pe','Fe','br','D8n','_I','jMt','MMt','eNt','KMt','wc','xl','fnn','xo','Nft','Wi','XPt','uR','_r','sn','nr','xB','mA','If','ej','Af','hy','wy','VZGSK6OM','OZH5HK54','GMTOLIE6','RB4EITEQ','hnAQ_U3V','BhvI6_DD','C5We7BLS'];
+// 从 SUBS 改名对提炼的旧标识符（3.18.2 侧），按风险列出
+const OLD_IDS = ['lf','G','ve','be','Ei','Ua','ue','j8n','hI','IMt','LMt','aNt','ZMt','Sc','yl','Rft','Ji','fe','de','ynn','So','tFt','cR','Ke','xt','qn','wr','UF','aa','Er','On','CA','Tf','gj','_f','Cy','Py','AL54RMRC','N4BDK3A6','IEBWXNOE','O6MP7ZHZ','CBeRQvEb','a4AckxCl','pAyOaFrs'];
 
-// 白名单：旧标识符同时是 3.18.2 find 中出现的合法名（find 已对照新版验证），按编辑+字段豁免
-// styles#1 replace 的 Fe = 3.18.2 合法新名（entitlements refresh，Pe→Fe 的目标），与 3.18.0 的 refreshPurchaseToken 同名属压缩名轮回
-const WHITELIST = new Set(['out/renderer/assets/styles-a4AckxCl.js #1 replace :: Fe']);
+// 白名单：旧标识符同时是 3.19.1 find/replace 中出现的合法新名（find 已对照新版验证），按编辑+字段豁免
+// styles#1 replace 的 be = 3.19.1 合法新名（settings:be，setOAuthError be→ye 的目标位恰好轮回），与 3.18.2 的 setOAuthError 同名属压缩名轮回
+const WHITELIST = new Set(['out/renderer/assets/styles-BKbqL3QI.js #1 replace :: be']);
 // （find 中出现 = 该编辑的官方上下文里此名仍是新版合法符号）
 const report = [];
 for (const t of p.targets) {
