@@ -6,14 +6,21 @@
 //       仅此审计能拦。压缩名轮回会误报（如 Fe），按「文件 #序号 字段::名」加白名单。
 import { readFileSync } from 'node:fs';
 
-const p = JSON.parse(readFileSync('D:/GitHub/Zcode-Expand/patches/3.19.1/patches.json', 'utf8'));
+const p = JSON.parse(readFileSync('D:/GitHub/Zcode-Expand/patches/4.0.0/patches.json', 'utf8'));
 
-// 从 SUBS 改名对提炼的旧标识符（3.18.2 侧），按风险列出
-const OLD_IDS = ['lf','G','ve','be','Ei','Ua','ue','j8n','hI','IMt','LMt','aNt','ZMt','Sc','yl','Rft','Ji','fe','de','ynn','So','tFt','cR','Ke','xt','qn','wr','UF','aa','Er','On','CA','Tf','gj','_f','Cy','Py','AL54RMRC','N4BDK3A6','IEBWXNOE','O6MP7ZHZ','CBeRQvEb','a4AckxCl','pAyOaFrs'];
+// 从 4.0.0 平移改名对提炼的旧标识符（3.19.1 侧），按风险列出
+const OLD_IDS = ['Eh','u7n','cI','WPt','GPt','pFt','aFt','kc','xl','Lsn','ao','Zpt','Yi','uLt','tR','Va','hr','TB','Ft','Hb','$b','YT','Ff','b6','Gf','m','u','I','A','w','b','lt','mr','Ho','t','VH3XR3TF','ASCI4U4P','PD4GOPHK','y0cT70_L','BKbqL3QI','gnrpuno','MGNVGTOG'];
 
-// 白名单：旧标识符同时是 3.19.1 find/replace 中出现的合法新名（find 已对照新版验证），按编辑+字段豁免
-// styles#1 replace 的 be = 3.19.1 合法新名（settings:be，setOAuthError be→ye 的目标位恰好轮回），与 3.18.2 的 setOAuthError 同名属压缩名轮回
-const WHITELIST = new Set(['out/renderer/assets/styles-BKbqL3QI.js #1 replace :: be']);
+// 白名单：旧侧名字在 4.0.0 仍是合法引用（定义级实证），按编辑+字段豁免
+// styles #3/#4 的 m = 我方新增的 zcXpSwitch 形参别名（#3 声明、#4 使用），与 host 设置 chunk 改名的 e as m 无关
+// styles #8 的 m = 会话任务列表（let p=new Set(...),m=$F(e,{kind:`project`,...），4.0.0 未改名
+const WHITELIST = new Set([
+  'out/renderer/assets/styles-D2WmIVpU.js #3 replace :: m',
+  'out/renderer/assets/styles-D2WmIVpU.js #3 marker :: m',
+  'out/renderer/assets/styles-D2WmIVpU.js #4 replace :: m',
+  'out/renderer/assets/styles-D2WmIVpU.js #4 marker :: m',
+  'out/renderer/assets/styles-D2WmIVpU.js #8 replace :: m',
+]);
 // （find 中出现 = 该编辑的官方上下文里此名仍是新版合法符号）
 const report = [];
 for (const t of p.targets) {

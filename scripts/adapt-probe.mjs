@@ -10,12 +10,12 @@ const patches = JSON.parse(readFileSync(patchesArg, 'utf8'));
 const a = await openAsar(asarPathArg);
 
 const candidates = {
-  main: ['chunk-2BVCDB7Q','chunk-2RR5JR4J','chunk-53SIT7PA','chunk-5NE3TPF2','chunk-7DGEWO6G','chunk-BQ4JDEVJ','chunk-C7Y4PUU3','chunk-CM2YMK3U','chunk-HH7N2YVI','chunk-LBO6FN6W','chunk-MC6LJHEM','chunk-MGNVGTOG','chunk-NIW3MEGE','chunk-OULC53L3','chunk-PD4GOPHK','chunk-PX2IUBDM','chunk-SUT4TCAP','chunk-UUH5GOTC','chunk-ZHR5V36R'].map(c => 'out/main/' + c + '.js'),
-  host: ['chunk-5762NB3U','chunk-5IDO7J4H','chunk-ASCI4U4P','chunk-BKHFVWJF','chunk-FMTH6QCY','chunk-IYVG6UP7','chunk-NQ5RYZYK','chunk-NTRLNFQR','chunk-RLEO6HKG','chunk-SINCCV5L','chunk-VH3XR3TF','chunk-ZDLGWCUS'].map(c => 'out/host/' + c + '.js'),
+  main: ['chunk-2TPXA5T3','chunk-4ZHC5NZX','chunk-53SIT7PA','chunk-5NE3TPF2','chunk-BQ4JDEVJ','chunk-C7Y4PUU3','chunk-FFLKQUJD','chunk-HH7N2YVI','chunk-IERSWOXK','chunk-IQXOZSNT','chunk-J6JNAMPL','chunk-LBO6FN6W','chunk-O5SJCKKW','chunk-P2RG3CXD','chunk-SUT4TCAP','chunk-UDESEJSV','chunk-US5IUFET','chunk-YMWIBJNM','chunk-YVOVX4FX'].map(c => 'out/main/' + c + '.js'),
+  host: ['chunk-2DFQCMOQ','chunk-5762NB3U','chunk-5IDO7J4H','chunk-DM4IBDCM','chunk-DOQIFXM6','chunk-GGRJLJH3','chunk-IYVG6UP7','chunk-NTRLNFQR','chunk-SINCCV5L','chunk-SL5IL2MO','chunk-UXO4Y6UR','chunk-YU6Q3VRI'].map(c => 'out/host/' + c + '.js'),
 };
 const fixedMap = {
-  'out/renderer/assets/validation-CBeRQvEb.js': 'out/renderer/assets/validation-y0cT70_L.js',
-  'out/renderer/assets/styles-a4AckxCl.js': 'out/renderer/assets/styles-BKbqL3QI.js',
+  'out/renderer/assets/validation-y0cT70_L.js': 'out/renderer/assets/validation-BgObiV9E.js',
+  'out/renderer/assets/styles-BKbqL3QI.js': 'out/renderer/assets/styles-D2WmIVpU.js',
 };
 
 function countAll(hay, needle) {
