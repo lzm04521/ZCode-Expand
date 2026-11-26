@@ -54,6 +54,7 @@ const DEFAULT_WINDOW = 128000;
  * （glm-5.35 / deepseek-v4.2-flash 不命中→回落默认，行为同现状）。覆盖 G.Workbuddy-* 等
  * 路由前缀变体；\b 防前缀路由名（如 xxxglm-5.3）被误伤之外的其余部分误配。 */
 const MODEL_WINDOW_FAMILY = [
+  [/\bglm-5\.4(?:-[a-z0-9.]+)?$/, 1000000],              // GLM-5.4 家族：客户端内置模型规则判 1M + 库内峰值 37.5 万（doc/20261124-bug报告）
   [/\bglm-5\.3(?:-[a-z0-9.]+)?$/, 1000000],              // GLM-5.3 家族（-flash/-flashx 变体），依据 D8
   [/\bdeepseek-v4\.1-flash(?:-[a-z0-9.]+)?$/, 1000000],  // DeepSeek 官方 API：上下文最高 1M（1,048,576）
 ];
